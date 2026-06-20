@@ -9,6 +9,9 @@ import 'repositories/user_repository.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
+import 'repositories/reminder_repository.dart';
+import 'services/reminder_service.dart';
+import 'providers/reminder_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
@@ -66,6 +69,7 @@ void main() async {
   // Set up service/repository layer instances
   final userRepository = UserRepository();
   final notificationService = NotificationService();
+  final reminderRepository = ReminderRepository();
   
   // Initialize Notification Services
   await notificationService.initialize();
@@ -75,16 +79,27 @@ void main() async {
     userRepository: userRepository,
   );
 
+  final reminderService = ReminderService(
+    reminderRepository: reminderRepository,
+  );
+
   runApp(
     MultiProvider(
       providers: [
         Provider<UserRepository>.value(value: userRepository),
         Provider<NotificationService>.value(value: notificationService),
         Provider<UserService>.value(value: userService),
+        Provider<ReminderRepository>.value(value: reminderRepository),
+        Provider<ReminderService>.value(value: reminderService),
         ChangeNotifierProvider<AuthProvider>(
           create: (context) => AuthProvider(
             userService: userService,
             notificationService: notificationService,
+          ),
+        ),
+        ChangeNotifierProvider<ReminderProvider>(
+          create: (context) => ReminderProvider(
+            reminderService: reminderService,
           ),
         ),
       ],

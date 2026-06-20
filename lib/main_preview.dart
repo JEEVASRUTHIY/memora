@@ -9,6 +9,12 @@ import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'models/user_model.dart';
 import 'main.dart';
+import 'dart:async';
+import 'models/reminder_model.dart';
+import 'models/reminder_log_model.dart';
+import 'repositories/reminder_repository.dart';
+import 'services/reminder_service.dart';
+import 'providers/reminder_provider.dart';
 
 class PreviewState {
   static String? linkedPatientId;
@@ -32,6 +38,131 @@ class FakeFirebaseAuth extends Mock implements FirebaseAuth {
 }
 
 class FakeUserRepository extends Fake implements UserRepository {}
+
+class FakeReminderRepository extends Fake implements ReminderRepository {
+  final List<ReminderModel> _reminders = [];
+  final List<ReminderLogModel> _logs = [];
+
+  final _remindersController = StreamController<List<ReminderModel>>.broadcast();
+  final _logsController = StreamController<List<ReminderLogModel>>.broadcast();
+
+  FakeReminderRepository() {
+    // Add default mock reminders for the preview run
+    _reminders.add(ReminderModel(
+      reminderId: 'rem_1',
+      patientId: 'patient123',
+      description: 'Take Blood Pressure Tablet',
+      instructions: 'Take 1 tablet after breakfast.',
+      reminderType: 'Medication',
+      scheduledTime: DateTime.now().add(const Duration(minutes: 5)),
+      severityLevel: 'High',
+      escalationWaitingDuration: 1, // 1 minute for quick testing
+      activeStatus: true,
+    ));
+    _reminders.add(ReminderModel(
+      reminderId: 'rem_2',
+      patientId: 'patient123',
+      description: 'Morning Walk',
+      instructions: 'Walk around the garden for 15 minutes.',
+      reminderType: 'Routine',
+      scheduledTime: DateTime.now().add(const Duration(hours: 2)),
+      severityLevel: 'Low',
+      escalationWaitingDuration: 15,
+      activeStatus: true,
+    ));
+  }
+
+  @override
+  Future<ReminderModel> createReminder(ReminderModel reminder) async {
+    final id = reminder.reminderId.isEmpty 
+        ? 'rem_${DateTime.now().millisecondsSinceEpoch}' 
+        : reminder.reminderId;
+    final newReminder = reminder.copyWith(reminderId: id);
+    _reminders.add(newReminder);
+    _remindersController.add(List.from(_reminders));
+    return newReminder;
+  }
+
+  @override
+  Future<void> updateReminder(ReminderModel reminder) async {
+    final index = _reminders.indexWhere((r) => r.reminderId == reminder.reminderId);
+    if (index != -1) {
+      _reminders[index] = reminder;
+      _remindersController.add(List.from(_reminders));
+    }
+  }
+
+  @override
+  Future<ReminderModel?> getReminder(String reminderId) async {
+    try {
+      return _reminders.firstWhere((r) => r.reminderId == reminderId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Stream<List<ReminderModel>> watchReminders(String patientId) async* {
+    yield _reminders.where((r) => r.patientId == patientId).toList();
+    yield* _remindersController.stream.map(
+      (list) => list.where((r) => r.patientId == patientId).toList(),
+    );
+  }
+
+  @override
+  Stream<List<ReminderModel>> watchActiveReminders(String patientId) async* {
+    yield _reminders.where((r) => r.patientId == patientId && r.activeStatus).toList();
+    yield* _remindersController.stream.map(
+      (list) => list.where((r) => r.patientId == patientId && r.activeStatus).toList(),
+    );
+  }
+
+  @override
+  Future<ReminderLogModel> createReminderLog(ReminderLogModel log) async {
+    final id = log.logId.isEmpty 
+        ? 'log_${DateTime.now().millisecondsSinceEpoch}' 
+        : log.logId;
+    final newLog = log.copyWith(logId: id);
+    _logs.add(newLog);
+    _logsController.add(List.from(_logs));
+    return newLog;
+  }
+
+  @override
+  Future<void> updateReminderLogStatus(String logId, String status, {bool? escalationNotified}) async {
+    final index = _logs.indexWhere((l) => l.logId == logId);
+    if (index != -1) {
+      _logs[index] = _logs[index].copyWith(
+        status: status,
+        actionTime: DateTime.now(),
+        escalationNotified: escalationNotified ?? _logs[index].escalationNotified,
+      );
+      _logsController.add(List.from(_logs));
+    }
+  }
+
+  @override
+  Future<ReminderLogModel?> getReminderLog(String logId) async {
+    try {
+      return _logs.firstWhere((l) => l.logId == logId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Stream<List<ReminderLogModel>> watchReminderLogs(String patientId) async* {
+    final filtered = _logs.where((l) => l.patientId == patientId).toList();
+    filtered.sort((a, b) => b.scheduledTime.compareTo(a.scheduledTime));
+    yield filtered;
+    yield* _logsController.stream.map((list) {
+      final subList = list.where((l) => l.patientId == patientId).toList();
+      subList.sort((a, b) => b.scheduledTime.compareTo(a.scheduledTime));
+      return subList;
+    });
+  }
+}
+
 
 class FakeUserService extends Fake implements UserService {
   @override
@@ -185,6 +316,8 @@ void main() {
   final notificationService = FakeNotificationService();
   final userService = FakeUserService();
   final authProvider = PreviewAuthProvider();
+  final reminderRepository = FakeReminderRepository();
+  final reminderService = ReminderService(reminderRepository: reminderRepository);
 
   runApp(
     MultiProvider(
@@ -192,7 +325,14 @@ void main() {
         Provider<UserRepository>.value(value: userRepository),
         Provider<NotificationService>.value(value: notificationService),
         Provider<UserService>.value(value: userService),
+        Provider<ReminderRepository>.value(value: reminderRepository),
+        Provider<ReminderService>.value(value: reminderService),
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<ReminderProvider>(
+          create: (context) => ReminderProvider(
+            reminderService: reminderService,
+          ),
+        ),
       ],
       child: const MemoraApp(),
     ),

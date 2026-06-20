@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/reminder_provider.dart';
+import 'reminder_list_screen.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
 
@@ -17,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _patientIdController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  String? _initializedPatientId;
 
   @override
   void dispose() {
@@ -81,6 +84,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
     final userService = Provider.of<UserService>(context, listen: false);
     final user = authProvider.userModel;
+    final targetPatientId = user != null ? (user.isPatient ? user.userId : user.linkedPatientId) : null;
+
+    if (targetPatientId != null && _initializedPatientId != targetPatientId) {
+      _initializedPatientId = targetPatientId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Provider.of<ReminderProvider>(context, listen: false).initialize(targetPatientId);
+      });
+    }
 
     return Scaffold(
       body: Container(
@@ -131,7 +142,96 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 16),
+
+                      // Active Trigger Alerts
+                      Consumer<ReminderProvider>(
+                        builder: (context, provider, _) {
+                          final triggers = provider.pendingTriggers;
+                          if (triggers.isEmpty) return const SizedBox.shrink();
+
+                          return Column(
+                            children: triggers.map((log) {
+                              return Container(
+                                key: Key('trigger_${log.logId}'),
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.error.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppTheme.error.withOpacity(0.3), width: 1.5),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.warning_amber_rounded, color: AppTheme.error),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'REMINDER TRIGGERED!',
+                                          style: GoogleFonts.outfit(
+                                            color: AppTheme.error,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      log.description,
+                                      style: GoogleFonts.outfit(
+                                        color: AppTheme.textPrimary,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    if (log.instructions != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        log.instructions!,
+                                        style: GoogleFonts.outfit(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 16),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        TextButton(
+                                          key: Key('dismiss_${log.logId}'),
+                                          onPressed: () => provider.dismissTrigger(log.logId),
+                                          child: Text(
+                                            'Dismiss',
+                                            style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        ElevatedButton(
+                                          key: Key('confirm_${log.logId}'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppTheme.accent,
+                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                          ),
+                                          onPressed: () => provider.confirmTrigger(log.logId),
+                                          child: Text(
+                                            'Confirm',
+                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
 
                       // User Info Card
                       Card(
@@ -162,7 +262,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
+
+                      // Reminders Card (if patient or linked caregiver has patientId)
+                      if (targetPatientId != null) ...[
+                        _buildRemindersCard(context, targetPatientId),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Linking section heading
                       Text(
@@ -575,6 +681,64 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRemindersCard(BuildContext context, String patientId) {
+    return Card(
+      color: AppTheme.primary.withOpacity(0.08),
+      child: InkWell(
+        key: const Key('remindersModuleCard'),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReminderListScreen(patientId: patientId),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.alarm_on_rounded, color: AppTheme.primary, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reminders Module',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Manage medications, schedules, and view logging history.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.textSecondary, size: 16),
+            ],
+          ),
         ),
       ),
     );

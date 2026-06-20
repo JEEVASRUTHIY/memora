@@ -18,5 +18,75 @@ service cloud.firestore {
       
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    match /reminders/{reminderId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId &&
+        request.resource.data.patientId is string &&
+        request.resource.data.description is string && request.resource.data.description.size() > 0 &&
+        request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
+        request.resource.data.scheduledTime is timestamp &&
+        request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
+        request.resource.data.escalationWaitingDuration is int &&
+        request.resource.data.activeStatus is bool;
+
+      allow update: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
+        request.resource.data.patientId == resource.data.patientId &&
+        request.resource.data.description is string && request.resource.data.description.size() > 0 &&
+        request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
+        request.resource.data.scheduledTime is timestamp &&
+        request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
+        request.resource.data.escalationWaitingDuration is int &&
+        request.resource.data.activeStatus is bool;
+
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId;
+    }
+
+    match /reminderLogs/{logId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create: if request.auth != null && (
+        // Patient creating their own log
+        (request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver creating log for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.patientId is string &&
+      request.resource.data.reminderId is string &&
+      request.resource.data.description is string && request.resource.data.description.size() > 0 &&
+      request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
+      request.resource.data.scheduledTime is timestamp &&
+      request.resource.data.status in ['Triggered', 'Confirmed', 'Missed'] &&
+      request.resource.data.actionTime is timestamp &&
+      request.resource.data.escalationNotified is bool;
+
+      allow update: if request.auth != null && (
+        // Patient updating their own log
+        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver updating log for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.status in ['Triggered', 'Confirmed', 'Missed'] &&
+      request.resource.data.actionTime is timestamp &&
+      request.resource.data.escalationNotified is bool &&
+      request.resource.data.patientId == resource.data.patientId &&
+      request.resource.data.reminderId == resource.data.reminderId &&
+      request.resource.data.description == resource.data.description &&
+      request.resource.data.reminderType == resource.data.reminderType &&
+      request.resource.data.scheduledTime == resource.data.scheduledTime;
+
+      allow delete: if false;
+    }
   }
 }

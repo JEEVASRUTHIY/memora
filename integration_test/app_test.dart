@@ -16,6 +16,7 @@ import 'package:memora/screens/home_screen.dart';
 class MockAuthProvider extends Mock implements AuthProvider {}
 class MockUserService extends Mock implements UserService {}
 class MockNotificationService extends Mock implements NotificationService {}
+class MockUser extends Mock implements User {}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -139,7 +140,7 @@ void main() {
 
     testWidgets('Home Screen Flow: Caregiver Links Patient successfully', (WidgetTester tester) async {
       // Setup mock auth provider state to represent logged in Caregiver
-      when(() => mockAuthProvider.firebaseUser).thenReturn(mock<User>());
+      when(() => mockAuthProvider.firebaseUser).thenReturn(MockUser());
       when(() => mockAuthProvider.userModel).thenReturn(caregiverUser);
       
       // Mock UserService watchUserProfile for caregiver and patient profile streams
@@ -173,6 +174,4 @@ void main() {
   });
 }
 
-// Helper utility to mock classes dynamically
-T mock<T extends Object>() => _MockHelper<T>();
-class _MockHelper<T extends Object> extends Mock implements T {}
+
