@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../models/user_model.dart';
+import '../services/user_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -79,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final userService = Provider.of<UserService>(context, listen: false);
     final user = authProvider.userModel;
 
     return Scaffold(
@@ -178,8 +179,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: SingleChildScrollView(
                           child: user.isPatient
-                              ? _buildPatientLinkingUI(user)
-                              : _buildCaregiverLinkingUI(user, authProvider),
+                              ? _buildPatientLinkingUI(user, userService)
+                              : _buildCaregiverLinkingUI(user, authProvider, userService),
                         ),
                       ),
                     ],
@@ -235,11 +236,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPatientLinkingUI(UserModel patient) {
+  Widget _buildPatientLinkingUI(UserModel patient, UserService userService) {
     if (patient.linkedCaregiverId != null) {
       // Stream user details of the caregiver
-      return StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(patient.linkedCaregiverId).snapshots(),
+      return StreamBuilder<UserModel?>(
+        stream: userService.watchUserProfile(patient.linkedCaregiverId!),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _buildStatusCard(
@@ -249,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
               subtitle: 'Caregiver ID: ${patient.linkedCaregiverId}',
             );
           }
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData || snapshot.data == null) {
             return _buildStatusCard(
               icon: Icons.link_rounded,
               color: AppTheme.accent,
@@ -258,9 +259,9 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          final caregiverData = snapshot.data!.data() as Map<String, dynamic>;
-          final caregiverName = caregiverData['name'] ?? 'Caregiver';
-          final caregiverContact = caregiverData['contactDetails'] ?? '';
+          final caregiver = snapshot.data!;
+          final caregiverName = caregiver.name;
+          final caregiverContact = caregiver.contactDetails;
 
           return Card(
             color: AppTheme.surface.withOpacity(0.6),
@@ -366,11 +367,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCaregiverLinkingUI(UserModel caregiver, AuthProvider authProvider) {
+  Widget _buildCaregiverLinkingUI(UserModel caregiver, AuthProvider authProvider, UserService userService) {
     if (caregiver.linkedPatientId != null) {
       // Stream user details of the patient
-      return StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(caregiver.linkedPatientId).snapshots(),
+      return StreamBuilder<UserModel?>(
+        stream: userService.watchUserProfile(caregiver.linkedPatientId!),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _buildStatusCard(
@@ -380,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
               subtitle: 'Patient ID: ${caregiver.linkedPatientId}',
             );
           }
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.hasData || snapshot.data == null) {
             return _buildStatusCard(
               icon: Icons.link_rounded,
               color: AppTheme.accent,
@@ -389,9 +390,9 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          final patientData = snapshot.data!.data() as Map<String, dynamic>;
-          final patientName = patientData['name'] ?? 'Patient';
-          final patientContact = patientData['contactDetails'] ?? '';
+          final patient = snapshot.data!;
+          final patientName = patient.name;
+          final patientContact = patient.contactDetails;
 
           return Card(
             color: AppTheme.surface.withOpacity(0.6),

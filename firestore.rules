@@ -2,19 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      // Allow read if user is authenticated and either:
-      // 1. Reading their own document
-      // 2. Reading their linked patient/caregiver document
-      allow read: if request.auth != null && (
+      // Allow read if user is authenticated (needed to search/verify profiles during linking)
+      allow read: if request.auth != null;
+      
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      allow update: if request.auth != null && (
+        // Owner can update their own document
         request.auth.uid == userId ||
-        resource.data.linkedPatientId == request.auth.uid ||
-        resource.data.linkedCaregiverId == request.auth.uid
+        // A caregiver can link themselves to a patient if the patient is not yet linked
+        (request.resource.data.linkedCaregiverId == request.auth.uid && 
+         resource.data.linkedCaregiverId == null &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedCaregiverId']))
       );
       
-      // Allow write (create, update, delete) only by the owner.
-      // Note: Caregiver-Patient linking is done via Cloud Functions using the Admin SDK,
-      // which bypasses security rules.
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

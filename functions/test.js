@@ -189,5 +189,35 @@ describe("Cloud Functions API Tests", () => {
       expect(res.status).to.equal(500);
       expect(res.body.error).to.contain("not registered as a Caregiver");
     });
+
+    it("should fail if caregiver user is already linked to another patient", async () => {
+      // Setup already linked caregiver
+      store["caregiver1"].linkedPatientId = "anotherPatient";
+
+      const res = await request(users)
+        .post("/link-patient")
+        .send({
+          caregiverId: "caregiver1",
+          patientId: "patient1"
+        });
+
+      expect(res.status).to.equal(500);
+      expect(res.body.error).to.contain("already linked to another patient");
+    });
+
+    it("should fail if patient user is already linked to another caregiver", async () => {
+      // Setup already linked patient
+      store["patient1"].linkedCaregiverId = "anotherCaregiver";
+
+      const res = await request(users)
+        .post("/link-patient")
+        .send({
+          caregiverId: "caregiver1",
+          patientId: "patient1"
+        });
+
+      expect(res.status).to.equal(500);
+      expect(res.body.error).to.contain("already linked to another caregiver");
+    });
   });
 });

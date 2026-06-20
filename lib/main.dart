@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'repositories/user_repository.dart';
@@ -9,17 +12,55 @@ import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
+const bool useEmulator = false; // Set to true to use local Firebase Emulators in debug mode
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Note: Flutter fire init is typically run dynamically or configured in a Firebase options file.
-  // We will initialize standard Firebase. If testing locally or building without Firebase configurations,
-  // we catch initialization error.
   try {
-    await Firebase.initializeApp();
+    if (kIsWeb) {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: "AIzaSyD9icq-KItmRMBHvGr_udUN_qLPZhGhqeI",
+          authDomain: "memora-3b359.firebaseapp.com",
+          projectId: "memora-3b359",
+          storageBucket: "memora-3b359.firebasestorage.app",
+          messagingSenderId: "365872702190",
+          appId: "1:365872702190:web:70d7ad4b0eaa17457109ff",
+          measurementId: "G-2L0FT4897G",
+        ),
+      );
+    } else {
+      await Firebase.initializeApp();
+    }
+    
+    if (useEmulator && kDebugMode) {
+      final host = defaultTargetPlatform == TargetPlatform.android ? '10.0.2.2' : 'localhost';
+      FirebaseAuth.instance.useAuthEmulator(host, 9099);
+      FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+      debugPrint("Connecting to Firebase Emulators at $host...");
+    }
   } catch (e) {
     debugPrint("Firebase Core initialization warning: $e");
-    debugPrint("Ensure you have added google-services.json (Android) and GoogleService-Info.plist (iOS).");
+    // Fallback: in debug/emulator mode on other platforms, try initializing with mock options if emulator is enabled
+    if (useEmulator && kDebugMode) {
+      try {
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: "mock-api-key-12345",
+            appId: "mock-app-id-12345",
+            messagingSenderId: "mock-sender-id",
+            projectId: "memora-3b359",
+          ),
+        );
+        final host = defaultTargetPlatform == TargetPlatform.android ? '10.0.2.2' : 'localhost';
+        FirebaseAuth.instance.useAuthEmulator(host, 9099);
+        FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+        debugPrint("Connecting to Firebase Emulators with mock options at $host...");
+      } catch (innerError) {
+        debugPrint("Fallback Firebase initialization failed: $innerError");
+      }
+    }
   }
 
   // Set up service/repository layer instances
@@ -29,11 +70,9 @@ void main() async {
   // Initialize Notification Services
   await notificationService.initialize();
 
-  // Create UserService pointing to our deployed Firebase Cloud Functions
-  // (In emulator mode, you can override the baseUrl to http://10.0.2.2:5001/YOUR-PROJECT/us-central1/users)
+  // Create UserService pointing to our repository
   final userService = UserService(
     userRepository: userRepository,
-    baseUrl: 'https://us-central1-memora-app.cloudfunctions.net/users', 
   );
 
   runApp(
@@ -83,7 +122,7 @@ class AuthGate extends StatelessWidget {
     }
 
     if (authProvider.userModel == null) {
-      return const Scaffold(
+      return Scaffold(
         body: Container(
           decoration: BoxDecoration(
             gradient: AppTheme.bgGradient,

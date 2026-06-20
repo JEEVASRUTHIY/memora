@@ -16,62 +16,48 @@ class UserService {
         _client = client ?? http.Client(),
         _baseUrl = baseUrl ?? 'https://us-central1-memora-app.cloudfunctions.net/users'; // Default placeholder
 
-  /// Calls the Cloud Function: POST /users/register
+  /// Registers user profile directly in Firestore.
   Future<UserModel> registerUser({
     required String userId,
     required String role,
     required String name,
     required String contactDetails,
   }) async {
-    final url = Uri.parse('$_baseUrl/register');
-    
     try {
-      final response = await _client.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userId': userId,
-          'role': role,
-          'name': name,
-          'contactDetails': contactDetails,
-        }),
+      final user = UserModel(
+        userId: userId,
+        role: role,
+        name: name,
+        contactDetails: contactDetails,
       );
-
-      if (response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        return UserModel.fromJson(data['user']);
-      } else {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ?? 'Registration failed');
-      }
+      await _repository.saveUser(user);
+      return user;
     } catch (e) {
-      throw Exception('Network error during registration: $e');
+      throw Exception('Error during registration: $e');
     }
   }
 
-  /// Calls the Cloud Function: POST /users/link-patient
+  /// Links caregiver to patient directly in Firestore.
   Future<void> linkPatient({
     required String caregiverId,
     required String patientId,
   }) async {
-    final url = Uri.parse('$_baseUrl/link-patient');
-
     try {
-      final response = await _client.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'caregiverId': caregiverId,
-          'patientId': patientId,
-        }),
+      await _repository.linkPatient(
+        caregiverId: caregiverId,
+        patientId: patientId,
       );
-
-      if (response.statusCode != 200) {
-        final errorData = jsonDecode(response.body);
-        throw Exception(errorData['error'] ?? 'Linking failed');
-      }
     } catch (e) {
-      throw Exception('Network error during linking: $e');
+      throw Exception('Error during linking: $e');
+    }
+  }
+
+  /// Updates the user's FCM token in Firestore.
+  Future<void> updateFcmToken(String userId, String token) async {
+    try {
+      await _repository.updateFields(userId, {'fcmToken': token});
+    } catch (e) {
+      throw Exception('Failed to update FCM token: $e');
     }
   }
 

@@ -104,6 +104,14 @@ app.post("/link-patient", async (req, res) => {
         throw new Error(`User with ID ${patientId} is not registered as a Patient`);
       }
 
+      // Verify they are not already linked to other people
+      if (caregiverData.linkedPatientId && caregiverData.linkedPatientId !== patientId) {
+        throw new Error(`Caregiver user with ID ${caregiverId} is already linked to another patient`);
+      }
+      if (patientData.linkedCaregiverId && patientData.linkedCaregiverId !== caregiverId) {
+        throw new Error(`Patient user with ID ${patientId} is already linked to another caregiver`);
+      }
+
       // Perform updates
       transaction.update(caregiverRef, { linkedPatientId: patientId });
       transaction.update(patientRef, { linkedCaregiverId: caregiverId });

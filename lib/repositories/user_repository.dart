@@ -53,4 +53,49 @@ class UserRepository {
       rethrow;
     }
   }
+
+  /// Links a caregiver and a patient atomically using a Firestore transaction.
+  Future<void> linkPatient({
+    required String caregiverId,
+    required String patientId,
+  }) async {
+    final caregiverRef = _usersCollection.doc(caregiverId);
+    final patientRef = _usersCollection.doc(patientId);
+
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final caregiverDoc = await transaction.get(caregiverRef);
+        final patientDoc = await transaction.get(patientRef);
+
+        if (!caregiverDoc.exists) {
+          throw Exception("Caregiver user with ID $caregiverId does not exist");
+        }
+        if (!patientDoc.exists) {
+          throw Exception("Patient user with ID $patientId does not exist");
+        }
+
+        final caregiverData = caregiverDoc.data()!;
+        final patientData = patientDoc.data()!;
+
+        if (caregiverData['role'] != 'Caregiver') {
+          throw Exception("User with ID $caregiverId is not a Caregiver");
+        }
+        if (patientData['role'] != 'Patient') {
+          throw Exception("User with ID $patientId is not a Patient");
+        }
+
+        if (caregiverData['linkedPatientId'] != null && caregiverData['linkedPatientId'] != patientId) {
+          throw Exception("Caregiver is already linked to another patient");
+        }
+        if (patientData['linkedCaregiverId'] != null && patientData['linkedCaregiverId'] != caregiverId) {
+          throw Exception("Patient is already linked to another caregiver");
+        }
+
+        transaction.update(caregiverRef, {'linkedPatientId': patientId});
+        transaction.update(patientRef, {'linkedCaregiverId': caregiverId});
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

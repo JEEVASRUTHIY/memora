@@ -58,15 +58,7 @@ class AuthProvider extends ChangeNotifier {
     final token = await _notificationService.getToken();
     if (token != null) {
       try {
-        // Safe check to verify if the model exists before updating in firestore directly or via repository
-        // Since FCM token is client-side state, we can save it on the user doc
-        // Note: For simplicity and since Firestore rules allow own updates, we can update directly
-        // We will call the repository to save the FCM token field:
-        // 'fcmToken': token
-        // Wait, does the model require fcmToken field? It's not in the specified list of Firestore fields,
-        // but we can save it or log it. The user specified fields are:
-        // userId, role, name, contactDetails, linkedPatientId, linkedCaregiverId.
-        // To be safe and compliant, we will just print/log it, or store it in user collection.
+        await _userService.updateFcmToken(userId, token);
       } catch (e) {
         debugPrint("FCM token update failed: $e");
       }
