@@ -214,6 +214,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               key: const Key('typeDropdown'),
+                              isExpanded: true,
                               value: _reminderType,
                               decoration: const InputDecoration(labelText: 'Type'),
                               items: _types.map((type) {
@@ -231,6 +232,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               key: const Key('severityDropdown'),
+                              isExpanded: true,
                               value: _severityLevel,
                               decoration: const InputDecoration(labelText: 'Severity'),
                               items: _severities.map((sev) {
