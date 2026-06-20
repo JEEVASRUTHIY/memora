@@ -33,7 +33,8 @@ service cloud.firestore {
         request.resource.data.scheduledTime is timestamp &&
         request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
         request.resource.data.escalationWaitingDuration is int &&
-        request.resource.data.activeStatus is bool;
+        request.resource.data.activeStatus is bool &&
+        request.resource.data.snoozeEnabled is bool;
 
       allow update: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
@@ -43,7 +44,8 @@ service cloud.firestore {
         request.resource.data.scheduledTime is timestamp &&
         request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
         request.resource.data.escalationWaitingDuration is int &&
-        request.resource.data.activeStatus is bool;
+        request.resource.data.activeStatus is bool &&
+        request.resource.data.snoozeEnabled is bool;
 
       allow delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId;
@@ -69,6 +71,7 @@ service cloud.firestore {
       request.resource.data.status in ['Triggered', 'Completed', 'Missed', 'Snoozed', 'Confirmed'] &&
       request.resource.data.actionTime is timestamp &&
       request.resource.data.escalationNotified is bool &&
+      request.resource.data.snoozeEnabled is bool &&
       (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp);
 
       allow update: if request.auth != null && (
@@ -86,6 +89,7 @@ service cloud.firestore {
       request.resource.data.description == resource.data.description &&
       request.resource.data.reminderType == resource.data.reminderType &&
       request.resource.data.scheduledTime == resource.data.scheduledTime &&
+      request.resource.data.snoozeEnabled == resource.data.snoozeEnabled &&
       (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp);
 
       allow delete: if false;

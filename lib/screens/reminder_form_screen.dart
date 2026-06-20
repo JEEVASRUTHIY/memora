@@ -31,6 +31,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
   DateTime _scheduledTime = DateTime.now().add(const Duration(minutes: 5));
   int _escalationDuration = 15;
   bool _activeStatus = true;
+  bool _snoozeEnabled = true;
   bool _isLoading = false;
 
   final List<String> _types = ['Medication', 'Routine', 'Appointment'];
@@ -48,6 +49,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
       _scheduledTime = r.scheduledTime;
       _escalationDuration = r.escalationWaitingDuration;
       _activeStatus = r.activeStatus;
+      _snoozeEnabled = r.snoozeEnabled;
     }
   }
 
@@ -120,6 +122,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
       severityLevel: _severityLevel,
       escalationWaitingDuration: _escalationDuration,
       activeStatus: _activeStatus,
+      snoozeEnabled: _snoozeEnabled,
     );
 
     try {
@@ -370,6 +373,23 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
                         value: _activeStatus,
                         activeColor: AppTheme.accent,
                         onChanged: (val) => setState(() => _activeStatus = val),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Snooze Enabled Switch
+                      SwitchListTile(
+                        key: const Key('snoozeEnabledSwitch'),
+                        title: Text(
+                          'Enable Snooze',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          _snoozeEnabled ? 'Patient can snooze triggers.' : 'Snoozing is disabled.',
+                          style: GoogleFonts.outfit(color: AppTheme.textSecondary, fontSize: 12),
+                        ),
+                        value: _snoozeEnabled,
+                        activeColor: AppTheme.accent,
+                        onChanged: (val) => setState(() => _snoozeEnabled = val),
                       ),
                       const SizedBox(height: 40),
 

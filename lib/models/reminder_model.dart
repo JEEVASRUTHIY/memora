@@ -10,6 +10,7 @@ class ReminderModel {
   final String severityLevel;
   final int escalationWaitingDuration; // In minutes
   final bool activeStatus;
+  final bool snoozeEnabled;
 
   ReminderModel({
     required this.reminderId,
@@ -21,6 +22,7 @@ class ReminderModel {
     required this.severityLevel,
     required this.escalationWaitingDuration,
     required this.activeStatus,
+    this.snoozeEnabled = true,
   });
 
   factory ReminderModel.fromJson(Map<String, dynamic> json, {String? docId}) {
@@ -46,6 +48,7 @@ class ReminderModel {
           ? json['escalationWaitingDuration'] 
           : int.tryParse(json['escalationWaitingDuration']?.toString() ?? '') ?? 15,
       activeStatus: json['activeStatus'] ?? true,
+      snoozeEnabled: json['snoozeEnabled'] ?? true,
     );
   }
 
@@ -60,6 +63,7 @@ class ReminderModel {
       'severityLevel': severityLevel,
       'escalationWaitingDuration': escalationWaitingDuration,
       'activeStatus': activeStatus,
+      'snoozeEnabled': snoozeEnabled,
     };
   }
 
@@ -73,6 +77,7 @@ class ReminderModel {
     String? severityLevel,
     int? escalationWaitingDuration,
     bool? activeStatus,
+    bool? snoozeEnabled,
   }) {
     return ReminderModel(
       reminderId: reminderId ?? this.reminderId,
@@ -84,6 +89,7 @@ class ReminderModel {
       severityLevel: severityLevel ?? this.severityLevel,
       escalationWaitingDuration: escalationWaitingDuration ?? this.escalationWaitingDuration,
       activeStatus: activeStatus ?? this.activeStatus,
+      snoozeEnabled: snoozeEnabled ?? this.snoozeEnabled,
     );
   }
 }

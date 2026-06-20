@@ -62,6 +62,64 @@ class _ReminderListScreenState extends State<ReminderListScreen> with SingleTick
     }
   }
 
+  Future<void> _showDeleteConfirmationDialog(
+    BuildContext context,
+    ReminderProvider provider,
+    ReminderService service,
+    ReminderModel reminder,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Delete Reminder?',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Are you sure you want to delete this reminder? This action cannot be undone, but past history logs will be preserved.',
+            style: GoogleFonts.outfit(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+              ),
+            ),
+            TextButton(
+              key: const Key('confirmDeleteButton'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                'Delete',
+                style: GoogleFonts.outfit(color: AppTheme.error, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        await service.deleteReminder(reminder.reminderId);
+        provider.initialize(widget.patientId); // Refresh timers
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Reminder deleted successfully.')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete reminder: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -182,6 +240,21 @@ class _ReminderListScreenState extends State<ReminderListScreen> with SingleTick
                                           style: GoogleFonts.outfit(color: severityColor, fontSize: 11, fontWeight: FontWeight.bold),
                                         ),
                                       ),
+                                      const SizedBox(width: 8),
+
+                                      // Active/Pending Badge
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: (reminder.activeStatus ? AppTheme.accent : AppTheme.textSecondary).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: (reminder.activeStatus ? AppTheme.accent : AppTheme.textSecondary).withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          reminder.activeStatus ? 'Pending' : 'Disabled',
+                                          style: GoogleFonts.outfit(color: reminder.activeStatus ? AppTheme.accent : AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                   
@@ -245,19 +318,29 @@ class _ReminderListScreenState extends State<ReminderListScreen> with SingleTick
                                   ),
                                   
                                   if (isCaregiver)
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_note_rounded, color: AppTheme.primary, size: 24),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => ReminderFormScreen(
-                                              patientId: widget.patientId,
-                                              existingReminder: reminder,
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          key: Key('edit_${reminder.reminderId}'),
+                                          icon: const Icon(Icons.edit_note_rounded, color: AppTheme.primary, size: 24),
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => ReminderFormScreen(
+                                                  patientId: widget.patientId,
+                                                  existingReminder: reminder,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        IconButton(
+                                          key: Key('delete_${reminder.reminderId}'),
+                                          icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.error, size: 24),
+                                          onPressed: () => _showDeleteConfirmationDialog(context, provider, service, reminder),
+                                        ),
+                                      ],
                                     ),
                                 ],
                               ),

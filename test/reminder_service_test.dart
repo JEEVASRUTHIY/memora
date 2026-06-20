@@ -131,5 +131,13 @@ void main() {
         escalationNotified: true,
       )).called(1);
     });
+
+    test('deleteReminder calls repository to delete', () async {
+      when(() => mockRepository.deleteReminder(any())).thenAnswer((_) async {});
+
+      await reminderService.deleteReminder('rem_123');
+
+      verify(() => mockRepository.deleteReminder('rem_123')).called(1);
+    });
   });
 }

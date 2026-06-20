@@ -54,6 +54,15 @@ class ReminderRepository {
     }
   }
 
+  /// Deletes a reminder by ID.
+  Future<void> deleteReminder(String reminderId) async {
+    try {
+      await _remindersCollection.doc(reminderId).delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Streams all reminders for a specific patient.
   Stream<List<ReminderModel>> watchReminders(String patientId) {
     return _remindersCollection

@@ -18,6 +18,11 @@ class ReminderService {
     return _repository.updateReminder(reminder);
   }
 
+  /// Deletes an existing reminder by ID.
+  Future<void> deleteReminder(String reminderId) {
+    return _repository.deleteReminder(reminderId);
+  }
+
   /// Fetches reminders as a real-time stream.
   Stream<List<ReminderModel>> getReminders(String patientId) {
     return _repository.watchReminders(patientId);
@@ -36,6 +41,7 @@ class ReminderService {
       status: 'Triggered',
       actionTime: DateTime.now(),
       escalationNotified: false,
+      snoozeEnabled: reminder.snoozeEnabled,
     );
     return _repository.createReminderLog(log);
   }

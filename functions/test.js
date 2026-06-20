@@ -46,7 +46,14 @@ const adminMock = {
     FieldValue: {
       serverTimestamp: () => "mock-timestamp"
     }
-  })
+  }),
+  messaging: () => ({
+    send: async (msg) => {
+      adminMock.lastSentMessage = msg;
+      return "mock-message-id";
+    }
+  }),
+  lastSentMessage: null
 };
 
 // Cache the mock so require('firebase-admin') returns adminMock
@@ -61,6 +68,12 @@ require.cache[require.resolve("firebase-admin")] = {
 const functionsMock = {
   https: {
     onRequest: (handler) => handler
+  },
+  firestore: {
+    document: (path) => ({
+      onCreate: (handler) => handler,
+      onUpdate: (handler) => handler
+    })
   }
 };
 require.cache[require.resolve("firebase-functions")] = {
@@ -218,6 +231,81 @@ describe("Cloud Functions API Tests", () => {
 
       expect(res.status).to.equal(500);
       expect(res.body.error).to.contain("already linked to another caregiver");
+    });
+  });
+
+  describe("Firestore Database Triggers", () => {
+    const { onReminderLogCreated, onReminderLogUpdated } = require("./index.js");
+
+    beforeEach(() => {
+      adminMock.lastSentMessage = null;
+      store["patient1"] = {
+        userId: "patient1",
+        role: "Patient",
+        name: "John Patient",
+        fcmToken: "patient-fcm-token",
+        linkedCaregiverId: "caregiver1",
+      };
+      store["caregiver1"] = {
+        userId: "caregiver1",
+        role: "Caregiver",
+        name: "Jane Caregiver",
+        fcmToken: "caregiver-fcm-token",
+        linkedPatientId: "patient1",
+      };
+    });
+
+    it("onReminderLogCreated should send FCM notification if status is Triggered", async () => {
+      const snap = {
+        id: "log123",
+        data: () => ({
+          patientId: "patient1",
+          reminderId: "rem123",
+          description: "Take BP Tablet",
+          reminderType: "Medication",
+          status: "Triggered",
+          snoozeEnabled: true,
+        }),
+      };
+
+      await onReminderLogCreated(snap, {});
+      expect(adminMock.lastSentMessage).to.exist;
+      expect(adminMock.lastSentMessage.token).to.equal("patient-fcm-token");
+      expect(adminMock.lastSentMessage.notification.title).to.equal("Medication Reminder");
+      expect(adminMock.lastSentMessage.notification.body).to.equal("Take BP Tablet");
+      expect(adminMock.lastSentMessage.data.logId).to.equal("log123");
+    });
+
+    it("onReminderLogUpdated should send FCM notification to caregiver if status updates to Missed with escalationNotified=true", async () => {
+      const change = {
+        before: {
+          data: () => ({
+            patientId: "patient1",
+            reminderId: "rem123",
+            description: "Take BP Tablet",
+            reminderType: "Medication",
+            status: "Triggered",
+            escalationNotified: false,
+          }),
+        },
+        after: {
+          id: "log123",
+          data: () => ({
+            patientId: "patient1",
+            reminderId: "rem123",
+            description: "Take BP Tablet",
+            reminderType: "Medication",
+            status: "Missed",
+            escalationNotified: true,
+          }),
+        },
+      };
+
+      await onReminderLogUpdated(change, {});
+      expect(adminMock.lastSentMessage).to.exist;
+      expect(adminMock.lastSentMessage.token).to.equal("caregiver-fcm-token");
+      expect(adminMock.lastSentMessage.notification.title).to.equal("Missed Reminder: Medication");
+      expect(adminMock.lastSentMessage.notification.body).to.contain("John Patient missed");
     });
   });
 });

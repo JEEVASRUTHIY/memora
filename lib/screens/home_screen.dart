@@ -145,106 +145,100 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 16),
 
                       // Active Trigger Alerts
-                      Consumer<ReminderProvider>(
-                        builder: (context, provider, _) {
-                          final triggers = provider.pendingTriggers;
-                          if (triggers.isEmpty) return const SizedBox.shrink();
+                      if (user.isPatient)
+                        Consumer<ReminderProvider>(
+                          builder: (context, provider, _) {
+                            final triggers = provider.pendingTriggers;
+                            if (triggers.isEmpty) return const SizedBox.shrink();
 
-                          return Column(
-                            children: triggers.map((log) {
-                              return Container(
-                                key: Key('trigger_${log.logId}'),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.error.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: AppTheme.error.withOpacity(0.3), width: 1.5),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.warning_amber_rounded, color: AppTheme.error),
-                                        const SizedBox(width: 8),
+                            return Column(
+                              children: triggers.map((log) {
+                                return Container(
+                                  key: Key('trigger_${log.logId}'),
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.error.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppTheme.error.withOpacity(0.3), width: 1.5),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.warning_amber_rounded, color: AppTheme.error),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'REMINDER TRIGGERED!',
+                                            style: GoogleFonts.outfit(
+                                              color: AppTheme.error,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        log.description,
+                                        style: GoogleFonts.outfit(
+                                          color: AppTheme.textPrimary,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      if (log.instructions != null) ...[
+                                        const SizedBox(height: 4),
                                         Text(
-                                          'REMINDER TRIGGERED!',
+                                          log.instructions!,
                                           style: GoogleFonts.outfit(
-                                            color: AppTheme.error,
-                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.textSecondary,
                                             fontSize: 14,
-                                            letterSpacing: 0.5,
                                           ),
                                         ),
                                       ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      log.description,
-                                      style: GoogleFonts.outfit(
-                                        color: AppTheme.textPrimary,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    if (log.instructions != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        log.instructions!,
-                                        style: GoogleFonts.outfit(
-                                          color: AppTheme.textSecondary,
-                                          fontSize: 14,
-                                        ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          if (log.snoozeEnabled) ...[
+                                            TextButton(
+                                              key: Key('snooze_${log.logId}'),
+                                              onPressed: () => provider.snoozeTrigger(log.logId),
+                                              child: Text(
+                                                'Snooze',
+                                                style: GoogleFonts.outfit(color: Colors.amber),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                          ],
+                                          ElevatedButton(
+                                            key: Key('confirm_${log.logId}'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppTheme.accent,
+                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                            ),
+                                            onPressed: () => provider.confirmTrigger(log.logId),
+                                            child: Text(
+                                              'Confirm',
+                                              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton(
-                                          key: Key('dismiss_${log.logId}'),
-                                          onPressed: () => provider.dismissTrigger(log.logId),
-                                          child: Text(
-                                            'Dismiss',
-                                            style: GoogleFonts.outfit(color: AppTheme.textSecondary),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        TextButton(
-                                          key: Key('snooze_${log.logId}'),
-                                          onPressed: () => provider.snoozeTrigger(log.logId),
-                                          child: Text(
-                                            'Snooze',
-                                            style: GoogleFonts.outfit(color: Colors.amber),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        ElevatedButton(
-                                          key: Key('confirm_${log.logId}'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppTheme.accent,
-                                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                          ),
-                                          onPressed: () => provider.confirmTrigger(log.logId),
-                                          child: Text(
-                                            'Confirm',
-                                            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          );
-                        },
-                      ),
+                                  ),
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
                       const SizedBox(height: 16),
 
-                      // Adherence Dashboard Card
-                      if (targetPatientId != null) ...[
+                      // Adherence Dashboard Card (Caregiver Only)
+                      if (user.isCaregiver && targetPatientId != null) ...[
                         Consumer<ReminderProvider>(
                           builder: (context, provider, _) {
                             final logs = provider.allLogs;
@@ -343,6 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                 children: [
+                                                  _buildStatMetric('Total', logs.length, Colors.blue),
                                                   _buildStatMetric('Completed', completedCount, AppTheme.accent),
                                                   _buildStatMetric('Missed', missedCount, AppTheme.error),
                                                   _buildStatMetric('Snoozed', snoozedCount, Colors.amber),

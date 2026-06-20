@@ -130,3 +130,124 @@ app.post("/link-patient", async (req, res) => {
 
 // Expose Express App as a single Cloud Function named "users"
 exports.users = functions.https.onRequest(app);
+
+/**
+ * Trigger when a reminder log is created.
+ * If status is 'Triggered', it looks up the patient's fcmToken and sends a push notification.
+ */
+exports.onReminderLogCreated = functions.firestore
+  .document("reminderLogs/{logId}")
+  .onCreate(async (snapshot, context) => {
+    const logData = snapshot.data();
+    if (!logData) return null;
+
+    if (logData.status === "Triggered") {
+      const patientId = logData.patientId;
+      if (!patientId) return null;
+
+      try {
+        const patientDoc = await db.collection("users").doc(patientId).get();
+        if (!patientDoc.exists) return null;
+
+        const fcmToken = patientDoc.data().fcmToken;
+        if (!fcmToken) {
+          console.log(`No fcmToken found for patient: ${patientId}`);
+          return null;
+        }
+
+        const payload = {
+          token: fcmToken,
+          notification: {
+            title: `${logData.reminderType} Reminder`,
+            body: logData.description,
+          },
+          data: {
+            logId: snapshot.id,
+            reminderId: logData.reminderId || "",
+            patientId: logData.patientId || "",
+            reminderType: logData.reminderType || "",
+            description: logData.description || "",
+            instructions: logData.instructions || "",
+            snoozeEnabled: String(logData.snoozeEnabled !== false),
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+        };
+
+        const response = await admin.messaging().send(payload);
+        console.log("Successfully sent reminder push:", response);
+        return response;
+      } catch (error) {
+        console.error("Error sending reminder push:", error);
+      }
+    }
+    return null;
+  });
+
+/**
+ * Trigger when a reminder log is updated.
+ * If status updates to 'Missed' and escalationNotified is true,
+ * it looks up the caregiver's fcmToken and sends a push notification.
+ */
+exports.onReminderLogUpdated = functions.firestore
+  .document("reminderLogs/{logId}")
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    if (!beforeData || !afterData) return null;
+
+    const becameMissed = afterData.status === "Missed" && beforeData.status !== "Missed";
+    const becameEscalated = afterData.escalationNotified === true && beforeData.escalationNotified !== true;
+
+    // Send push if log became missed and escalated
+    if (afterData.status === "Missed" && afterData.escalationNotified === true && 
+        (becameMissed || becameEscalated)) {
+      const patientId = afterData.patientId;
+      if (!patientId) return null;
+
+      try {
+        // Fetch patient to get linkedCaregiverId
+        const patientDoc = await db.collection("users").doc(patientId).get();
+        if (!patientDoc.exists) return null;
+
+        const caregiverId = patientDoc.data().linkedCaregiverId;
+        if (!caregiverId) {
+          console.log(`No caregiver linked to patient: ${patientId}`);
+          return null;
+        }
+
+        // Fetch caregiver to get fcmToken
+        const caregiverDoc = await db.collection("users").doc(caregiverId).get();
+        if (!caregiverDoc.exists) return null;
+
+        const caregiverFcmToken = caregiverDoc.data().fcmToken;
+        if (!caregiverFcmToken) {
+          console.log(`No fcmToken found for caregiver: ${caregiverId}`);
+          return null;
+        }
+
+        const payload = {
+          token: caregiverFcmToken,
+          notification: {
+            title: `Missed Reminder: ${afterData.reminderType}`,
+            body: `${patientDoc.data().name || "Your patient"} missed: ${afterData.description}`,
+          },
+          data: {
+            logId: change.after.id,
+            reminderId: afterData.reminderId || "",
+            patientId: afterData.patientId || "",
+            reminderType: afterData.reminderType || "",
+            description: afterData.description || "",
+            instructions: afterData.instructions || "",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
+          },
+        };
+
+        const response = await admin.messaging().send(payload);
+        console.log("Successfully sent caregiver escalation push:", response);
+        return response;
+      } catch (error) {
+        console.error("Error sending caregiver escalation push:", error);
+      }
+    }
+    return null;
+  });

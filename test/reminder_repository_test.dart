@@ -157,5 +157,14 @@ void main() {
       verify(() => mockCollection.doc('log_123')).called(1);
       verify(() => mockDocument.update(any(that: isA<Map<String, dynamic>>()))).called(1);
     });
+
+    test('deleteReminder deletes document from collection', () async {
+      when(() => mockDocument.delete()).thenAnswer((_) async {});
+
+      await reminderRepository.deleteReminder('rem_123');
+
+      verify(() => mockCollection.doc('rem_123')).called(1);
+      verify(() => mockDocument.delete()).called(1);
+    });
   });
 }

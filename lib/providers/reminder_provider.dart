@@ -52,7 +52,6 @@ class ReminderProvider extends ChangeNotifier {
   void initialize(String patientId) {
     cancelSubscriptions();
     
-    // 1. Listen to all reminders
     _remindersSubscription = _service.getReminders(patientId).listen((reminders) async {
       // Cancel previous scheduled notifications
       for (var reminder in _allReminders) {
@@ -61,6 +60,22 @@ class ReminderProvider extends ChangeNotifier {
       
       _allReminders = reminders;
       _activeReminders = reminders.where((r) => r.activeStatus).toList();
+
+      // Cancel pending triggers and timers for deleted reminders
+      final activeReminderIds = reminders.map((r) => r.reminderId).toSet();
+      final triggersToRemove = <String>[];
+      for (var entry in _pendingTriggers.entries) {
+        if (!activeReminderIds.contains(entry.value.reminderId)) {
+          triggersToRemove.add(entry.key);
+        }
+      }
+      for (var targetLogId in triggersToRemove) {
+        _escalationTimers[targetLogId]?.cancel();
+        _escalationTimers.remove(targetLogId);
+        _pendingTriggers.remove(targetLogId);
+        await _notificationService?.cancelReminderNotification(targetLogId);
+      }
+
       notifyListeners();
 
       // Schedule new future notifications
@@ -229,7 +244,7 @@ class ReminderProvider extends ChangeNotifier {
     await _notificationService?.cancelReminderNotification(logId);
 
     final log = _pendingTriggers[logId];
-    if (log != null) {
+    if (log != null && log.snoozeEnabled) {
       try {
         await _service.snoozeReminder(logId);
         _pendingTriggers.remove(logId);

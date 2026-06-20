@@ -93,6 +93,12 @@ class FakeReminderRepository extends Fake implements ReminderRepository {
   }
 
   @override
+  Future<void> deleteReminder(String reminderId) async {
+    _reminders.removeWhere((r) => r.reminderId == reminderId);
+    _remindersController.add(List.from(_reminders));
+  }
+
+  @override
   Future<ReminderModel?> getReminder(String reminderId) async {
     try {
       return _reminders.firstWhere((r) => r.reminderId == reminderId);
