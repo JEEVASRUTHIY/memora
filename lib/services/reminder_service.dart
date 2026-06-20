@@ -40,9 +40,18 @@ class ReminderService {
     return _repository.createReminderLog(log);
   }
 
-  /// Confirms a triggered reminder.
+  /// Confirms a triggered reminder as Completed.
   Future<void> confirmReminder(String logId) {
-    return _repository.updateReminderLogStatus(logId, 'Confirmed');
+    return _repository.updateReminderLogStatus(
+      logId, 
+      'Completed',
+      completedAt: DateTime.now(),
+    );
+  }
+
+  /// Snoozes a triggered reminder.
+  Future<void> snoozeReminder(String logId) {
+    return _repository.updateReminderLogStatus(logId, 'Snoozed');
   }
 
   /// Marks a triggered reminder as missed (escalated).

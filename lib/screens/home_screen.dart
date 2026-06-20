@@ -210,6 +210,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                             style: GoogleFonts.outfit(color: AppTheme.textSecondary),
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
+                                        TextButton(
+                                          key: Key('snooze_${log.logId}'),
+                                          onPressed: () => provider.snoozeTrigger(log.logId),
+                                          child: Text(
+                                            'Snooze',
+                                            style: GoogleFonts.outfit(color: Colors.amber),
+                                          ),
+                                        ),
                                         const SizedBox(width: 12),
                                         ElevatedButton(
                                           key: Key('confirm_${log.logId}'),
@@ -232,6 +241,126 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                       ),
+                      const SizedBox(height: 16),
+
+                      // Adherence Dashboard Card
+                      if (targetPatientId != null) ...[
+                        Consumer<ReminderProvider>(
+                          builder: (context, provider, _) {
+                            final logs = provider.allLogs;
+                            
+                            final completedCount = logs.where((l) => l.status.toLowerCase() == 'completed' || l.status.toLowerCase() == 'confirmed').length;
+                            final missedCount = logs.where((l) => l.status.toLowerCase() == 'missed').length;
+                            final snoozedCount = logs.where((l) => l.status.toLowerCase() == 'snoozed').length;
+                            
+                            final totalFinished = completedCount + missedCount;
+                            final adherenceRate = totalFinished > 0 
+                                ? (completedCount / totalFinished * 100).round() 
+                                : 100;
+                                
+                            Color statusColor;
+                            String statusText;
+                            IconData statusIcon;
+                            
+                            if (adherenceRate >= 80) {
+                              statusColor = AppTheme.accent;
+                              statusText = 'Excellent Adherence';
+                              statusIcon = Icons.check_circle_outline_rounded;
+                            } else if (adherenceRate >= 50) {
+                              statusColor = Colors.orangeAccent;
+                              statusText = 'Needs Attention';
+                              statusIcon = Icons.info_outline_rounded;
+                            } else {
+                              statusColor = AppTheme.error;
+                              statusText = 'Critical Level!';
+                              statusIcon = Icons.warning_amber_rounded;
+                            }
+                            
+                            return Card(
+                              key: const Key('adherenceDashboardCard'),
+                              color: AppTheme.primary.withOpacity(0.05),
+                              child: Padding(
+                                padding: const EdgeInsets.all(20.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Adherence Dashboard',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.textPrimary,
+                                      ),
+                                    ),
+                                    const Divider(height: 24, color: Colors.white10),
+                                    Row(
+                                      children: [
+                                        // Left: Percentage ring
+                                        Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            SizedBox(
+                                              width: 70,
+                                              height: 70,
+                                              child: CircularProgressIndicator(
+                                                value: adherenceRate / 100,
+                                                strokeWidth: 8,
+                                                backgroundColor: Colors.white10,
+                                                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                                              ),
+                                            ),
+                                            Text(
+                                              '$adherenceRate%',
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.textPrimary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 20),
+                                        // Right: Detail stats
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(statusIcon, color: statusColor, size: 18),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    statusText,
+                                                    style: GoogleFonts.outfit(
+                                                      color: statusColor,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  _buildStatMetric('Completed', completedCount, AppTheme.accent),
+                                                  _buildStatMetric('Missed', missedCount, AppTheme.error),
+                                                  _buildStatMetric('Snoozed', snoozedCount, Colors.amber),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
                       // User Info Card
                       Card(
@@ -741,6 +870,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStatMetric(String label, int count, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          count.toString(),
+          style: GoogleFonts.outfit(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 }

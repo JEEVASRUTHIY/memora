@@ -100,6 +100,7 @@ void main() async {
         ChangeNotifierProvider<ReminderProvider>(
           create: (context) => ReminderProvider(
             reminderService: reminderService,
+            notificationService: notificationService,
           ),
         ),
       ],

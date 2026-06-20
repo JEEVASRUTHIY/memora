@@ -95,7 +95,12 @@ class ReminderRepository {
   }
 
   /// Updates the status of a reminder log (e.g. Confirmed, Missed).
-  Future<void> updateReminderLogStatus(String logId, String status, {bool? escalationNotified}) async {
+  Future<void> updateReminderLogStatus(
+    String logId,
+    String status, {
+    bool? escalationNotified,
+    DateTime? completedAt,
+  }) async {
     try {
       final updates = <String, dynamic>{
         'status': status,
@@ -103,6 +108,11 @@ class ReminderRepository {
       };
       if (escalationNotified != null) {
         updates['escalationNotified'] = escalationNotified;
+      }
+      if (completedAt != null) {
+        updates['completedAt'] = Timestamp.fromDate(completedAt);
+      } else if (status.toLowerCase() == 'completed') {
+        updates['completedAt'] = Timestamp.fromDate(DateTime.now());
       }
       await _reminderLogsCollection.doc(logId).update(updates);
     } catch (e) {

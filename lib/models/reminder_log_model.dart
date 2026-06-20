@@ -8,9 +8,10 @@ class ReminderLogModel {
   final String? instructions;
   final String reminderType;
   final DateTime scheduledTime;
-  final String status; // 'Triggered', 'Confirmed', 'Missed'
+  final String status; // 'Triggered', 'Completed', 'Missed', 'Snoozed'
   final DateTime actionTime;
   final bool escalationNotified;
+  final DateTime? completedAt;
 
   ReminderLogModel({
     required this.logId,
@@ -23,6 +24,7 @@ class ReminderLogModel {
     required this.status,
     required this.actionTime,
     this.escalationNotified = false,
+    this.completedAt,
   });
 
   factory ReminderLogModel.fromJson(Map<String, dynamic> json, {String? docId}) {
@@ -46,6 +48,14 @@ class ReminderLogModel {
       actionDateTime = DateTime.now();
     }
 
+    final completedField = json['completedAt'];
+    DateTime? completedDateTime;
+    if (completedField is Timestamp) {
+      completedDateTime = completedField.toDate();
+    } else if (completedField is String) {
+      completedDateTime = DateTime.parse(completedField);
+    }
+
     return ReminderLogModel(
       logId: docId ?? json['logId'] ?? '',
       reminderId: json['reminderId'] ?? '',
@@ -57,6 +67,7 @@ class ReminderLogModel {
       status: json['status'] ?? 'Triggered',
       actionTime: actionDateTime,
       escalationNotified: json['escalationNotified'] ?? false,
+      completedAt: completedDateTime,
     );
   }
 
@@ -72,6 +83,7 @@ class ReminderLogModel {
       'status': status,
       'actionTime': Timestamp.fromDate(actionTime),
       'escalationNotified': escalationNotified,
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
     };
   }
 
@@ -86,6 +98,7 @@ class ReminderLogModel {
     String? status,
     DateTime? actionTime,
     bool? escalationNotified,
+    DateTime? completedAt,
   }) {
     return ReminderLogModel(
       logId: logId ?? this.logId,
@@ -98,6 +111,7 @@ class ReminderLogModel {
       status: status ?? this.status,
       actionTime: actionTime ?? this.actionTime,
       escalationNotified: escalationNotified ?? this.escalationNotified,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 }

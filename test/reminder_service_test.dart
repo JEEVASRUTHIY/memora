@@ -40,6 +40,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(testReminder);
     registerFallbackValue(testLog);
+    registerFallbackValue(DateTime(2026, 6, 20));
   });
 
   setUp(() {
@@ -84,22 +85,51 @@ void main() {
       verify(() => mockRepository.createReminderLog(any(that: isA<ReminderLogModel>()))).called(1);
     });
 
-    test('confirmReminder updates log status to Confirmed', () async {
-      when(() => mockRepository.updateReminderLogStatus(any(), any(), escalationNotified: any(named: 'escalationNotified')))
-          .thenAnswer((_) async {});
+    test('confirmReminder updates log status to Completed with completedAt', () async {
+      when(() => mockRepository.updateReminderLogStatus(
+        any(),
+        any(),
+        escalationNotified: any(named: 'escalationNotified'),
+        completedAt: any(named: 'completedAt'),
+      )).thenAnswer((_) async {});
 
       await reminderService.confirmReminder('log_123');
 
-      verify(() => mockRepository.updateReminderLogStatus('log_123', 'Confirmed')).called(1);
+      verify(() => mockRepository.updateReminderLogStatus(
+        'log_123',
+        'Completed',
+        completedAt: any(named: 'completedAt'),
+      )).called(1);
+    });
+
+    test('snoozeReminder updates log status to Snoozed', () async {
+      when(() => mockRepository.updateReminderLogStatus(
+        any(),
+        any(),
+        escalationNotified: any(named: 'escalationNotified'),
+        completedAt: any(named: 'completedAt'),
+      )).thenAnswer((_) async {});
+
+      await reminderService.snoozeReminder('log_123');
+
+      verify(() => mockRepository.updateReminderLogStatus('log_123', 'Snoozed')).called(1);
     });
 
     test('missReminder updates log status to Missed with notification setting', () async {
-      when(() => mockRepository.updateReminderLogStatus(any(), any(), escalationNotified: any(named: 'escalationNotified')))
-          .thenAnswer((_) async {});
+      when(() => mockRepository.updateReminderLogStatus(
+        any(),
+        any(),
+        escalationNotified: any(named: 'escalationNotified'),
+        completedAt: any(named: 'completedAt'),
+      )).thenAnswer((_) async {});
 
       await reminderService.missReminder('log_123', notifyCaregiver: true);
 
-      verify(() => mockRepository.updateReminderLogStatus('log_123', 'Missed', escalationNotified: true)).called(1);
+      verify(() => mockRepository.updateReminderLogStatus(
+        'log_123',
+        'Missed',
+        escalationNotified: true,
+      )).called(1);
     });
   });
 }

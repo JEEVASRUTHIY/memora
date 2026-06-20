@@ -129,13 +129,19 @@ class FakeReminderRepository extends Fake implements ReminderRepository {
   }
 
   @override
-  Future<void> updateReminderLogStatus(String logId, String status, {bool? escalationNotified}) async {
+  Future<void> updateReminderLogStatus(
+    String logId,
+    String status, {
+    bool? escalationNotified,
+    DateTime? completedAt,
+  }) async {
     final index = _logs.indexWhere((l) => l.logId == logId);
     if (index != -1) {
       _logs[index] = _logs[index].copyWith(
         status: status,
         actionTime: DateTime.now(),
         escalationNotified: escalationNotified ?? _logs[index].escalationNotified,
+        completedAt: completedAt ?? (status.toLowerCase() == 'completed' ? DateTime.now() : null),
       );
       _logsController.add(List.from(_logs));
     }
@@ -180,10 +186,22 @@ class FakeUserService extends Fake implements UserService {
 }
 
 class FakeNotificationService extends Fake implements NotificationService {
+  final _actionController = StreamController<NotificationActionEvent>.broadcast();
+  
+  @override
+  Stream<NotificationActionEvent> get actionStream => _actionController.stream;
+
   @override
   Future<void> initialize() async {}
+  
   @override
   Future<String?> getToken() async => 'mock-token';
+  
+  @override
+  Future<void> scheduleReminderNotification(ReminderLogModel log) async {}
+  
+  @override
+  Future<void> cancelReminderNotification(String logId) async {}
 }
 
 class PreviewAuthProvider extends AuthProvider {
@@ -331,6 +349,7 @@ void main() {
         ChangeNotifierProvider<ReminderProvider>(
           create: (context) => ReminderProvider(
             reminderService: reminderService,
+            notificationService: notificationService,
           ),
         ),
       ],

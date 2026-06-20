@@ -50,9 +50,12 @@ class _ReminderListScreenState extends State<ReminderListScreen> with SingleTick
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'confirmed':
+      case 'completed':
         return AppTheme.accent;
       case 'missed':
         return AppTheme.error;
+      case 'snoozed':
+        return Colors.amber;
       case 'triggered':
       default:
         return AppTheme.primary;
@@ -330,11 +333,17 @@ class _ReminderListScreenState extends State<ReminderListScreen> with SingleTick
                                           style: GoogleFonts.outfit(fontSize: 11, color: AppTheme.textSecondary),
                                         ),
                                         const SizedBox(width: 8),
-                                        if (log.status.toLowerCase() != 'triggered')
+                                        if (log.status.toLowerCase() == 'completed' || log.status.toLowerCase() == 'confirmed') ...[
+                                          Text(
+                                            '• Completed: ${TimeOfDay.fromDateTime(log.completedAt ?? log.actionTime).format(context)}',
+                                            style: GoogleFonts.outfit(fontSize: 11, color: AppTheme.textSecondary),
+                                          ),
+                                        ] else if (log.status.toLowerCase() != 'triggered') ...[
                                           Text(
                                             '• Action: ${TimeOfDay.fromDateTime(log.actionTime).format(context)}',
                                             style: GoogleFonts.outfit(fontSize: 11, color: AppTheme.textSecondary),
                                           ),
+                                        ],
                                       ],
                                     ),
                                   ],
