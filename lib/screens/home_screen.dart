@@ -8,6 +8,8 @@ import '../providers/reminder_provider.dart';
 import 'reminder_list_screen.dart';
 import '../models/user_model.dart';
 import '../services/user_service.dart';
+import '../providers/safe_zone_provider.dart';
+import 'safe_zone_status_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -89,7 +91,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (targetPatientId != null && _initializedPatientId != targetPatientId) {
       _initializedPatientId = targetPatientId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        Provider.of<ReminderProvider>(context, listen: false).initialize(targetPatientId);
+        Provider.of<ReminderProvider>(context, listen: false).initialize(targetPatientId, isPatient: user!.isPatient);
+        Provider.of<SafeZoneProvider>(context, listen: false).initialize(targetPatientId, isPatient: user.isPatient);
       });
     }
 
@@ -105,12 +108,82 @@ class _HomeScreenState extends State<HomeScreen> {
                     valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
                   ),
                 )
-              : Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Header Row
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Active Breach Banner
+                        if (targetPatientId != null)
+                          StreamBuilder<UserModel?>(
+                            stream: userService.watchUserProfile(targetPatientId),
+                            builder: (context, snapshot) {
+                              final patientProfile = snapshot.data;
+                              final isBreached = patientProfile != null && 
+                                  (patientProfile.toJson()['isBreached'] == true);
+
+                              if (!isBreached) return const SizedBox.shrink();
+
+                              return Container(
+                                key: const Key('breachAlertBanner'),
+                                margin: const EdgeInsets.only(bottom: 16),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.error,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SafeZoneStatusScreen(patientId: targetPatientId),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 24),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'EMERGENCY: SAFE ZONE BREACH!',
+                                                  style: GoogleFonts.outfit(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  user.isPatient
+                                                      ? 'You have left your home safe zone! Tap to view details.'
+                                                      : '${patientProfile.name} has left their safe zone! Tap to view details.',
+                                                  style: GoogleFonts.outfit(
+                                                    color: Colors.white.withOpacity(0.9),
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        // Header Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -143,6 +216,74 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+
+                      // Safe Zone Breach Alert
+                      if (targetPatientId != null)
+                        Consumer<SafeZoneProvider>(
+                          builder: (context, safeZoneProv, _) {
+                            final isBreached = safeZoneProv.latestLocation?.breachFlag == true;
+                            final active = safeZoneProv.currentSafeZone?.activeStatus == true;
+                            if (!active || !isBreached) return const SizedBox.shrink();
+
+                            return Container(
+                              key: const Key('safeZoneBreachWarningCard'),
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: AppTheme.error.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppTheme.error, width: 2.0),
+                              ),
+                              child: InkWell(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => SafeZoneStatusScreen(patientId: targetPatientId),
+                                    ),
+                                  );
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.security_update_warning_rounded, color: AppTheme.error, size: 32),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'CRITICAL: SAFE ZONE BREACHED!',
+                                              style: GoogleFonts.outfit(
+                                                color: AppTheme.error,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                                letterSpacing: 0.5,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              user.isPatient 
+                                                  ? 'You have exited the designated safe zone. Please return immediately.' 
+                                                  : 'The patient has exited the safe zone boundary. Tap to check coordinates on map.',
+                                              style: GoogleFonts.outfit(
+                                                color: AppTheme.textPrimary,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.error, size: 16),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
 
                       // Active Trigger Alerts
                       if (user.isPatient)
@@ -199,6 +340,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                         ),
                                       ],
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.access_time_rounded, color: AppTheme.textSecondary, size: 16),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Scheduled: ${TimeOfDay.fromDateTime(log.scheduledTime).format(context)}',
+                                            style: GoogleFonts.outfit(
+                                              color: AppTheme.textSecondary,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+
                                       const SizedBox(height: 16),
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.end,
@@ -241,11 +398,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (user.isCaregiver && targetPatientId != null) ...[
                         Consumer<ReminderProvider>(
                           builder: (context, provider, _) {
-                            final logs = provider.allLogs;
+                            final now = DateTime.now();
+                            final todayLogs = provider.allLogs.where((l) {
+                              return l.scheduledTime.year == now.year &&
+                                     l.scheduledTime.month == now.month &&
+                                     l.scheduledTime.day == now.day;
+                            }).toList();
                             
-                            final completedCount = logs.where((l) => l.status.toLowerCase() == 'completed' || l.status.toLowerCase() == 'confirmed').length;
-                            final missedCount = logs.where((l) => l.status.toLowerCase() == 'missed').length;
-                            final snoozedCount = logs.where((l) => l.status.toLowerCase() == 'snoozed').length;
+                            final completedCount = todayLogs.where((l) => l.status.toLowerCase() == 'completed' || l.status.toLowerCase() == 'confirmed').length;
+                            final missedCount = todayLogs.where((l) => l.status.toLowerCase() == 'missed').length;
+                            final snoozedCount = todayLogs.where((l) => l.status.toLowerCase() == 'snoozed').length;
                             
                             final totalFinished = completedCount + missedCount;
                             final adherenceRate = totalFinished > 0 
@@ -337,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Row(
                                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                 children: [
-                                                  _buildStatMetric('Total', logs.length, Colors.blue),
+                                                  _buildStatMetric('Total', todayLogs.length, Colors.blue),
                                                   _buildStatMetric('Completed', completedCount, AppTheme.accent),
                                                   _buildStatMetric('Missed', missedCount, AppTheme.error),
                                                   _buildStatMetric('Snoozed', snoozedCount, Colors.amber),
@@ -391,6 +553,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Reminders Card (if patient or linked caregiver has patientId)
                       if (targetPatientId != null) ...[
                         _buildRemindersCard(context, targetPatientId),
+                        const SizedBox(height: 16),
+                        _buildSafeZoneCard(context, targetPatientId),
                         const SizedBox(height: 24),
                       ],
 
@@ -406,16 +570,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 16),
 
                       // Linking logic
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: user.isPatient
-                              ? _buildPatientLinkingUI(user, userService)
-                              : _buildCaregiverLinkingUI(user, authProvider, userService),
-                        ),
-                      ),
+                      user.isPatient
+                          ? _buildPatientLinkingUI(user, userService)
+                          : _buildCaregiverLinkingUI(user, authProvider, userService),
                     ],
                   ),
                 ),
+              ),
         ),
       ),
     );
@@ -805,6 +966,64 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSafeZoneCard(BuildContext context, String patientId) {
+    return Card(
+      color: AppTheme.secondary.withOpacity(0.08),
+      child: InkWell(
+        key: const Key('safeZoneModuleCard'),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SafeZoneStatusScreen(patientId: patientId),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.security_rounded, color: AppTheme.secondary, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Safe Zone Module',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Configure geofence zones, monitor location in real-time, and check alerts logs.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.textSecondary, size: 16),
+            ],
+          ),
         ),
       ),
     );

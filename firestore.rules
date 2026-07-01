@@ -2,14 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      // Allow read if user is authenticated (needed to search/verify profiles during linking)
-      allow read: if request.auth != null;
+      // Allow read if user is authenticated and is either the owner or linked to the owner
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        resource.data.linkedPatientId == request.auth.uid ||
+        resource.data.linkedCaregiverId == request.auth.uid
+      );
       
       allow create: if request.auth != null && request.auth.uid == userId;
       
       allow update: if request.auth != null && (
-        // Owner can update their own document
-        request.auth.uid == userId ||
+        // Owner can update their own document, but NOT role, linkedPatientId, or linkedCaregiverId once set
+        (request.auth.uid == userId && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
+         (
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['linkedPatientId', 'linkedCaregiverId']) ||
+           (resource.data.linkedPatientId == null && request.resource.data.linkedPatientId is string) ||
+           (resource.data.linkedCaregiverId == null && request.resource.data.linkedCaregiverId is string)
+         )) ||
         // A caregiver can link themselves to a patient if the patient is not yet linked
         (request.resource.data.linkedCaregiverId == request.auth.uid && 
          resource.data.linkedCaregiverId == null &&
@@ -26,7 +36,8 @@ service cloud.firestore {
       );
       
       allow create: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId &&
+        (request.auth.uid == request.resource.data.patientId ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId) &&
         request.resource.data.patientId is string &&
         request.resource.data.description is string && request.resource.data.description.size() > 0 &&
         request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
@@ -37,18 +48,20 @@ service cloud.firestore {
         request.resource.data.snoozeEnabled is bool;
 
       allow update: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
+        (request.auth.uid == resource.data.patientId ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId) &&
         request.resource.data.patientId == resource.data.patientId &&
         request.resource.data.description is string && request.resource.data.description.size() > 0 &&
         request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
         request.resource.data.scheduledTime is timestamp &&
         request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
-        request.resource.data.escalationWaitingDuration is int &&
         request.resource.data.activeStatus is bool &&
         request.resource.data.snoozeEnabled is bool;
 
-      allow delete: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId;
+      allow delete: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
     }
 
     match /reminderLogs/{logId} {
@@ -93,6 +106,39 @@ service cloud.firestore {
       (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp);
 
       allow delete: if false;
+    }
+
+    match /safeZones/{patientId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == patientId
+      );
+      
+      allow create, update: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == patientId &&
+        request.resource.data.patientId == patientId &&
+        request.resource.data.homeLatitude is number &&
+        request.resource.data.homeLongitude is number &&
+        request.resource.data.radius is number &&
+        request.resource.data.radius > 0 &&
+        request.resource.data.activeStatus is bool;
+
+      allow delete: if false;
+    }
+
+    match /locationLogs/{logId} {
+      allow read: if request.auth != null && (
+        resource.data.patientId == request.auth.uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create: if request.auth != null && 
+        request.resource.data.patientId == request.auth.uid &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Patient' &&
+        request.resource.data.status in ['Inside', 'Outside'] &&
+        request.resource.data.timestamp is timestamp;
+      
+      allow update, delete: if false;
     }
   }
 }

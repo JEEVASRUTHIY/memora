@@ -11,6 +11,7 @@ class ReminderModel {
   final int escalationWaitingDuration; // In minutes
   final bool activeStatus;
   final bool snoozeEnabled;
+  final String? imageUrl;
 
   ReminderModel({
     required this.reminderId,
@@ -23,6 +24,7 @@ class ReminderModel {
     required this.escalationWaitingDuration,
     required this.activeStatus,
     this.snoozeEnabled = true,
+    this.imageUrl,
   });
 
   factory ReminderModel.fromJson(Map<String, dynamic> json, {String? docId}) {
@@ -49,6 +51,7 @@ class ReminderModel {
           : int.tryParse(json['escalationWaitingDuration']?.toString() ?? '') ?? 15,
       activeStatus: json['activeStatus'] ?? true,
       snoozeEnabled: json['snoozeEnabled'] ?? true,
+      imageUrl: json['imageUrl'],
     );
   }
 
@@ -64,6 +67,7 @@ class ReminderModel {
       'escalationWaitingDuration': escalationWaitingDuration,
       'activeStatus': activeStatus,
       'snoozeEnabled': snoozeEnabled,
+      'imageUrl': imageUrl,
     };
   }
 
@@ -78,6 +82,7 @@ class ReminderModel {
     int? escalationWaitingDuration,
     bool? activeStatus,
     bool? snoozeEnabled,
+    String? imageUrl,
   }) {
     return ReminderModel(
       reminderId: reminderId ?? this.reminderId,
@@ -90,6 +95,7 @@ class ReminderModel {
       escalationWaitingDuration: escalationWaitingDuration ?? this.escalationWaitingDuration,
       activeStatus: activeStatus ?? this.activeStatus,
       snoozeEnabled: snoozeEnabled ?? this.snoozeEnabled,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }

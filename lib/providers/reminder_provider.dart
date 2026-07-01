@@ -34,6 +34,7 @@ class ReminderProvider extends ChangeNotifier {
   // Sets of triggered reminder IDs for the current run to prevent double-triggering
   // in the same session
   final Set<String> _triggeredReminderIds = {};
+  bool _isPatient = false;
 
   ReminderProvider({
     required ReminderService reminderService,
@@ -49,13 +50,16 @@ class ReminderProvider extends ChangeNotifier {
   List<ReminderLogModel> get pendingTriggers => _pendingTriggers.values.toList();
 
   /// Starts listening to reminders for a patient.
-  void initialize(String patientId) {
+  void initialize(String patientId, {bool isPatient = true}) {
+    _isPatient = isPatient;
     cancelSubscriptions();
     
     _remindersSubscription = _service.getReminders(patientId).listen((reminders) async {
       // Cancel previous scheduled notifications
-      for (var reminder in _allReminders) {
-        await _notificationService?.cancelReminderNotification('rem_notif_${reminder.reminderId}');
+      if (_isPatient) {
+        for (var reminder in _allReminders) {
+          await _notificationService?.cancelReminderNotification('rem_notif_${reminder.reminderId}');
+        }
       }
       
       _allReminders = reminders;
@@ -79,7 +83,9 @@ class ReminderProvider extends ChangeNotifier {
       notifyListeners();
 
       // Schedule new future notifications
-      _scheduleFutureNotifications();
+      if (_isPatient) {
+        _scheduleFutureNotifications();
+      }
     });
 
     // 2. Listen to logs (for caregiver alerts and stats)
@@ -97,9 +103,11 @@ class ReminderProvider extends ChangeNotifier {
     });
 
     // 3. Start due checker timer (every 10 seconds)
-    _dueCheckerTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-      _checkDueReminders();
-    });
+    if (_isPatient) {
+      _dueCheckerTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+        _checkDueReminders();
+      });
+    }
   }
 
   void _listenToNotificationActions() {
@@ -129,6 +137,7 @@ class ReminderProvider extends ChangeNotifier {
           scheduledTime: reminder.scheduledTime,
           status: 'Scheduled',
           actionTime: now,
+          imageUrl: reminder.imageUrl,
         );
         await _notificationService!.scheduleReminderNotification(tempLog);
       }
@@ -187,10 +196,8 @@ class ReminderProvider extends ChangeNotifier {
           _pendingTriggers[log.logId] = log;
           notifyListeners();
 
-          // Trigger local device notification immediately!
-          await _notificationService?.scheduleReminderNotification(
-            log.copyWith(scheduledTime: DateTime.now().add(const Duration(seconds: 1))),
-          );
+          // Trigger local device notification immediately in the foreground!
+          await _notificationService?.showInstantNotification(log);
           
           // Schedule escalation timer (in minutes)
           final duration = Duration(minutes: reminder.escalationWaitingDuration);

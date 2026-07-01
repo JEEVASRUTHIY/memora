@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/widgets.dart';
 import '../models/reminder_log_model.dart';
 
 class NotificationActionEvent {
@@ -46,8 +48,16 @@ class NotificationService {
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');
       
+      const DarwinInitializationSettings initializationSettingsDarwin =
+          DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+
       const InitializationSettings initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid,
+        iOS: initializationSettingsDarwin,
       );
 
       await _localNotifications.initialize(
@@ -61,10 +71,57 @@ class NotificationService {
         },
       );
 
+      // Create Android custom notification channel with custom sound for background pushes
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          _localNotifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidImplementation != null) {
+        // Request exact alarm permission for Android 12+
+        try {
+          await androidImplementation.requestExactAlarmsPermission();
+        } catch (_) {}
+
+        // Request notification permission for Android 13+
+        try {
+          await androidImplementation.requestNotificationsPermission();
+        } catch (_) {}
+
+        const AndroidNotificationChannel channel = AndroidNotificationChannel(
+          'reminder_channel_v3', // channel id
+          'Reminders', // channel name
+          description: 'Channel for reminder notifications',
+          importance: Importance.max,
+          sound: RawResourceAndroidNotificationSound('gentle_reminder'),
+          playSound: true,
+        );
+        await androidImplementation.createNotificationChannel(channel);
+      }
+
       // 4. Setup foreground message handler (triggered when app is active)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         if (kDebugMode) {
           print('Handling a foreground message: ${message.messageId}');
+        }
+        final data = message.data;
+        final notification = message.notification;
+        if (data.isNotEmpty) {
+          final logId = data['logId'];
+          if (logId != null) {
+            final tempLog = ReminderLogModel(
+              logId: logId,
+              reminderId: data['reminderId'] ?? '',
+              patientId: data['patientId'] ?? '',
+              description: data['description'] ?? notification?.body ?? '',
+              instructions: data['instructions'],
+              reminderType: data['reminderType'] ?? 'Reminder',
+              scheduledTime: DateTime.now(),
+              status: 'Triggered',
+              actionTime: DateTime.now(),
+              imageUrl: data['imageUrl'],
+            );
+            showInstantNotification(tempLog);
+          }
         }
       });
 
@@ -92,34 +149,65 @@ class NotificationService {
       final int notificationId = log.logId.hashCode;
       
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'reminder_channel',
+        'reminder_channel_v3',
         'Reminders',
         channelDescription: 'Channel for reminder notifications',
         importance: Importance.max,
         priority: Priority.high,
+        sound: RawResourceAndroidNotificationSound('gentle_reminder'),
+        playSound: true,
         actions: <AndroidNotificationAction>[
           AndroidNotificationAction('completed', 'Mark Completed', showsUserInterface: true),
           AndroidNotificationAction('snooze', 'Snooze', showsUserInterface: true),
         ],
       );
+
+      const DarwinNotificationDetails darwinDetails = DarwinNotificationDetails(
+        sound: 'gentle_reminder.wav',
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
       
       const NotificationDetails platformDetails = NotificationDetails(
         android: androidDetails,
+        iOS: darwinDetails,
       );
       
       final tzScheduledTime = tz.TZDateTime.from(log.scheduledTime.toUtc(), tz.UTC);
       
-      await _localNotifications.zonedSchedule(
-        notificationId,
-        log.description,
-        log.instructions ?? 'Time for your reminder.',
-        tzScheduledTime,
-        platformDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        payload: log.logId,
-      );
+      try {
+        await _localNotifications.zonedSchedule(
+          notificationId,
+          log.description,
+          log.instructions ?? 'Time for your reminder.',
+          tzScheduledTime,
+          platformDetails,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: log.logId,
+        );
+      } on PlatformException catch (pe) {
+        if (pe.code == 'exact_alarms_not_permitted') {
+          if (kDebugMode) {
+            print('Exact alarms not permitted, falling back to inexact scheduling.');
+          }
+          await _localNotifications.zonedSchedule(
+            notificationId,
+            log.description,
+            log.instructions ?? 'Time for your reminder.',
+            tzScheduledTime,
+            platformDetails,
+            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            payload: log.logId,
+          );
+        } else {
+          rethrow;
+        }
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error scheduling notification: $e');
@@ -134,6 +222,54 @@ class NotificationService {
     } catch (e) {
       if (kDebugMode) {
         print('Error cancelling notification: $e');
+      }
+    }
+  }
+
+  /// Shows an instant local notification for a reminder log.
+  Future<void> showInstantNotification(ReminderLogModel log) async {
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    try {
+      final int notificationId = log.logId.hashCode;
+      
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'reminder_channel_v3',
+        'Reminders',
+        channelDescription: 'Channel for reminder notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+        sound: RawResourceAndroidNotificationSound('gentle_reminder'),
+        playSound: true,
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction('completed', 'Mark Completed', showsUserInterface: true),
+          AndroidNotificationAction('snooze', 'Snooze', showsUserInterface: true),
+        ],
+      );
+
+      const DarwinNotificationDetails darwinDetails = DarwinNotificationDetails(
+        sound: 'gentle_reminder.wav',
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      
+      const NotificationDetails platformDetails = NotificationDetails(
+        android: androidDetails,
+        iOS: darwinDetails,
+      );
+      
+      await _localNotifications.show(
+        notificationId,
+        log.description,
+        log.instructions ?? 'Time for your reminder.',
+        platformDetails,
+        payload: log.logId,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error showing instant notification: $e');
       }
     }
   }

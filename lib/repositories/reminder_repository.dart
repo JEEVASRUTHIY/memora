@@ -56,6 +56,9 @@ class ReminderRepository {
 
   /// Deletes a reminder by ID.
   Future<void> deleteReminder(String reminderId) async {
+    if (reminderId.trim().isEmpty) {
+      throw ArgumentError('reminderId cannot be empty');
+    }
     try {
       await _remindersCollection.doc(reminderId).delete();
     } catch (e) {

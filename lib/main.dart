@@ -14,6 +14,10 @@ import 'services/reminder_service.dart';
 import 'providers/reminder_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'repositories/safe_zone_repository.dart';
+import 'services/safe_zone_service.dart';
+import 'services/background_location_service.dart';
+import 'providers/safe_zone_provider.dart';
 
 const bool useEmulator = false; // Set to true to use local Firebase Emulators in debug mode
 
@@ -70,9 +74,13 @@ void main() async {
   final userRepository = UserRepository();
   final notificationService = NotificationService();
   final reminderRepository = ReminderRepository();
+  final safeZoneRepository = SafeZoneRepository();
   
   // Initialize Notification Services
   await notificationService.initialize();
+
+  // Initialize Background Location Service
+  await BackgroundLocationService.initialize();
 
   // Create UserService pointing to our repository
   final userService = UserService(
@@ -83,6 +91,16 @@ void main() async {
     reminderRepository: reminderRepository,
   );
 
+  final String safeZoneBaseUrl = useEmulator && kDebugMode
+      ? (defaultTargetPlatform == TargetPlatform.android
+          ? 'http://10.0.2.2:5001/memora-3b359/us-central1/users'
+          : 'http://localhost:5001/memora-3b359/us-central1/users')
+      : 'https://us-central1-memora-app.cloudfunctions.net/users';
+
+  final safeZoneService = SafeZoneService(
+    baseUrl: safeZoneBaseUrl,
+  );
+
   runApp(
     MultiProvider(
       providers: [
@@ -91,6 +109,8 @@ void main() async {
         Provider<UserService>.value(value: userService),
         Provider<ReminderRepository>.value(value: reminderRepository),
         Provider<ReminderService>.value(value: reminderService),
+        Provider<SafeZoneRepository>.value(value: safeZoneRepository),
+        Provider<SafeZoneService>.value(value: safeZoneService),
         ChangeNotifierProvider<AuthProvider>(
           create: (context) => AuthProvider(
             userService: userService,
@@ -101,6 +121,12 @@ void main() async {
           create: (context) => ReminderProvider(
             reminderService: reminderService,
             notificationService: notificationService,
+          ),
+        ),
+        ChangeNotifierProvider<SafeZoneProvider>(
+          create: (context) => SafeZoneProvider(
+            safeZoneRepository: safeZoneRepository,
+            safeZoneService: safeZoneService,
           ),
         ),
       ],

@@ -13,6 +13,7 @@ class ReminderLogModel {
   final bool escalationNotified;
   final DateTime? completedAt;
   final bool snoozeEnabled;
+  final String? imageUrl;
 
   ReminderLogModel({
     required this.logId,
@@ -27,6 +28,7 @@ class ReminderLogModel {
     this.escalationNotified = false,
     this.completedAt,
     this.snoozeEnabled = true,
+    this.imageUrl,
   });
 
   factory ReminderLogModel.fromJson(Map<String, dynamic> json, {String? docId}) {
@@ -71,6 +73,7 @@ class ReminderLogModel {
       escalationNotified: json['escalationNotified'] ?? false,
       completedAt: completedDateTime,
       snoozeEnabled: json['snoozeEnabled'] ?? true,
+      imageUrl: json['imageUrl'],
     );
   }
 
@@ -88,6 +91,7 @@ class ReminderLogModel {
       'escalationNotified': escalationNotified,
       'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
       'snoozeEnabled': snoozeEnabled,
+      'imageUrl': imageUrl,
     };
   }
 
@@ -104,6 +108,7 @@ class ReminderLogModel {
     bool? escalationNotified,
     DateTime? completedAt,
     bool? snoozeEnabled,
+    String? imageUrl,
   }) {
     return ReminderLogModel(
       logId: logId ?? this.logId,
@@ -118,6 +123,7 @@ class ReminderLogModel {
       escalationNotified: escalationNotified ?? this.escalationNotified,
       completedAt: completedAt ?? this.completedAt,
       snoozeEnabled: snoozeEnabled ?? this.snoozeEnabled,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }

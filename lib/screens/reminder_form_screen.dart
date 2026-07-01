@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/reminder_model.dart';
 import '../providers/reminder_provider.dart';
+import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/reminder_service.dart';
 
@@ -37,6 +38,8 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
   final List<String> _types = ['Medication', 'Routine', 'Appointment'];
   final List<String> _severities = ['Low', 'Medium', 'High', 'Critical'];
 
+
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +55,8 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
       _snoozeEnabled = r.snoozeEnabled;
     }
   }
+
+
 
   @override
   void dispose() {
@@ -123,6 +128,7 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
       escalationWaitingDuration: _escalationDuration,
       activeStatus: _activeStatus,
       snoozeEnabled: _snoozeEnabled,
+      imageUrl: null,
     );
 
     try {
@@ -134,7 +140,9 @@ class _ReminderFormScreenState extends State<ReminderFormScreen> {
 
       // Re-initialize reminder provider to ensure timers pick up changes
       if (mounted) {
-        Provider.of<ReminderProvider>(context, listen: false).initialize(widget.patientId);
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final isPatient = authProvider.userModel?.isPatient ?? true;
+        Provider.of<ReminderProvider>(context, listen: false).initialize(widget.patientId, isPatient: isPatient);
         Navigator.pop(context);
       }
     } catch (e) {

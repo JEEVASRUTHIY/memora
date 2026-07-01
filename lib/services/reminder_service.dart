@@ -42,6 +42,7 @@ class ReminderService {
       actionTime: DateTime.now(),
       escalationNotified: false,
       snoozeEnabled: reminder.snoozeEnabled,
+      imageUrl: reminder.imageUrl,
     );
     return _repository.createReminderLog(log);
   }

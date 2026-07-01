@@ -64,6 +64,7 @@ void main() {
     // Default setups for notifications
     when(() => mockNotificationService.scheduleReminderNotification(any())).thenAnswer((_) async {});
     when(() => mockNotificationService.cancelReminderNotification(any())).thenAnswer((_) async {});
+    when(() => mockNotificationService.showInstantNotification(any())).thenAnswer((_) async {});
   });
 
   void setupProviderAndMocks() {
@@ -116,7 +117,7 @@ void main() {
         expect(reminderProvider.pendingTriggers, hasLength(1));
         expect(reminderProvider.pendingTriggers.first.logId, equals('log_123'));
         verify(() => mockService.triggerReminder(testReminder)).called(1);
-        verify(() => mockNotificationService.scheduleReminderNotification(any())).called(1);
+        verify(() => mockNotificationService.showInstantNotification(any())).called(1);
       });
     });
 
@@ -213,7 +214,8 @@ void main() {
 
         expect(reminderProvider.pendingTriggers, isEmpty);
         verify(() => mockService.snoozeReminder('log_123')).called(1);
-        verify(() => mockNotificationService.scheduleReminderNotification(any(that: isA<ReminderLogModel>()))).called(2); // 1st on trigger, 2nd on snooze
+        verify(() => mockNotificationService.showInstantNotification(any())).called(1);
+        verify(() => mockNotificationService.scheduleReminderNotification(any(that: isA<ReminderLogModel>()))).called(1);
       });
     });
 
@@ -234,7 +236,8 @@ void main() {
         expect(reminderProvider.pendingTriggers, isEmpty);
         verify(() => mockService.snoozeReminder('log_123')).called(1);
         verify(() => mockNotificationService.cancelReminderNotification('log_123')).called(1);
-        verify(() => mockNotificationService.scheduleReminderNotification(any(that: isA<ReminderLogModel>()))).called(2); // 1st on trigger, 2nd on snooze
+        verify(() => mockNotificationService.showInstantNotification(any())).called(1);
+        verify(() => mockNotificationService.scheduleReminderNotification(any(that: isA<ReminderLogModel>()))).called(1);
 
         // Elapse past 5 minutes to trigger escalation from snooze
         async.elapse(const Duration(minutes: 6));
