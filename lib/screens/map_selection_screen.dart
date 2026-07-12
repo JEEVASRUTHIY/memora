@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import '../theme/app_theme.dart';
 
@@ -20,7 +21,7 @@ class MapSelectionScreen extends StatefulWidget {
 
 class _MapSelectionScreenState extends State<MapSelectionScreen> {
   late LatLng _selectedCenter;
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   bool _hasError = false;
   String _errorMsg = '';
 
@@ -36,6 +37,7 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -64,13 +66,7 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
             ),
           );
         }
-        if (_mapController != null) {
-          _mapController!.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(target: newCenter, zoom: 15),
-            ),
-          );
-        }
+        _mapController.move(newCenter, 15);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -91,12 +87,6 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
         });
       }
     }
-  }
-
-  void _onMarkerDragEnd(LatLng newPos) {
-    setState(() {
-      _selectedCenter = newPos;
-    });
   }
 
   void _handleMapError(dynamic error) {
@@ -243,36 +233,49 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
 
   Widget tryMapWidget() {
     try {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: _selectedCenter,
-          zoom: 15,
+      return FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _selectedCenter,
+          initialZoom: 15.0,
+          onTap: (tapPosition, point) {
+            setState(() {
+              _selectedCenter = point;
+            });
+          },
         ),
-        onMapCreated: (controller) {
-          _mapController = controller;
-        },
-        markers: {
-          Marker(
-            markerId: const MarkerId('safe_zone_marker'),
-            position: _selectedCenter,
-            draggable: true,
-            onDragEnd: _onMarkerDragEnd,
-            infoWindow: const InfoWindow(title: 'Safe Zone Center', snippet: 'Drag to adjust'),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.jeevasruthiy.memora',
           ),
-        },
-        circles: {
-          Circle(
-            circleId: const CircleId('safe_zone_radius_circle'),
-            center: _selectedCenter,
-            radius: widget.radius,
-            fillColor: AppTheme.primary.withOpacity(0.15),
-            strokeColor: AppTheme.primary,
-            strokeWidth: 2,
+          CircleLayer(
+            circles: [
+              CircleMarker(
+                point: _selectedCenter,
+                radius: widget.radius,
+                useRadiusInMeter: true,
+                color: AppTheme.primary.withOpacity(0.15),
+                borderColor: AppTheme.primary,
+                borderStrokeWidth: 2.0,
+              ),
+            ],
           ),
-        },
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
-        mapToolbarEnabled: false,
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: _selectedCenter,
+                width: 80.0,
+                height: 80.0,
+                child: const Icon(
+                  Icons.location_on,
+                  size: 40.0,
+                  color: AppTheme.accent,
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     } catch (e) {
       _hasError = true;
@@ -313,7 +316,7 @@ class _MapSelectionScreenState extends State<MapSelectionScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'We are unable to load Google Maps at this time. This could be due to missing/invalid API keys, network issues, or service restrictions.',
+                'We are unable to load OpenStreetMap at this time. Please check your network connection.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
                   fontSize: 14,

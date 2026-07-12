@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
@@ -27,7 +28,7 @@ class SafeZoneStatusScreen extends StatefulWidget {
 }
 
 class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
-  GoogleMapController? _mapController;
+  final MapController _mapController = MapController();
   bool _isBackgroundRunning = false;
   bool _mapError = false;
   String _mapErrorMsg = '';
@@ -60,6 +61,7 @@ class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
   void dispose() {
     _serviceSubscription?.cancel();
     _latController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -295,7 +297,7 @@ class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
                 Expanded(
                   child: Stack(
                     children: [
-                      _buildGoogleMap(safeZone, patientLat, patientLng, isBreached),
+                      _buildMap(safeZone, patientLat, patientLng, isBreached),
                       
                       // Floating Info Cards overlay
                       Positioned(
@@ -409,7 +411,7 @@ class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
     );
   }
 
-  Widget _buildGoogleMap(SafeZoneModel? safeZone, double? patientLat, double? patientLng, bool isBreached) {
+  Widget _buildMap(SafeZoneModel? safeZone, double? patientLat, double? patientLng, bool isBreached) {
     if (_mapError) {
       return _buildMapErrorWidget();
     }
@@ -418,55 +420,58 @@ class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
         ? LatLng(safeZone.homeLatitude, safeZone.homeLongitude)
         : const LatLng(37.7749, -122.4194);
 
-    final markers = <Marker>{};
-    if (safeZone != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('safe_zone_center'),
-          position: center,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-          infoWindow: const InfoWindow(title: 'Safe Zone Center'),
-        ),
-      );
-    }
-
-    if (patientLat != null && patientLng != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('patient_location'),
-          position: LatLng(patientLat, patientLng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            isBreached ? BitmapDescriptor.hueRed : BitmapDescriptor.hueGreen
-          ),
-          infoWindow: const InfoWindow(title: 'Patient Current Location'),
-        ),
-      );
-    }
-
     try {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: patientLat != null && patientLng != null ? LatLng(patientLat, patientLng) : center,
-          zoom: 14,
+      return FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: patientLat != null && patientLng != null ? LatLng(patientLat, patientLng) : center,
+          initialZoom: 14.0,
         ),
-        onMapCreated: (controller) {
-          _mapController = controller;
-        },
-        markers: markers,
-        circles: safeZone != null 
-            ? {
-                Circle(
-                  circleId: const CircleId('geofence'),
-                  center: center,
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.jeevasruthiy.memora',
+          ),
+          if (safeZone != null)
+            CircleLayer(
+              circles: [
+                CircleMarker(
+                  point: center,
                   radius: safeZone.radius,
-                  fillColor: (isBreached ? AppTheme.error : AppTheme.accent).withOpacity(0.12),
-                  strokeColor: isBreached ? AppTheme.error : AppTheme.accent,
-                  strokeWidth: 2,
+                  useRadiusInMeter: true,
+                  color: (isBreached ? AppTheme.error : AppTheme.accent).withOpacity(0.12),
+                  borderColor: isBreached ? AppTheme.error : AppTheme.accent,
+                  borderStrokeWidth: 2.0,
                 ),
-              }
-            : {},
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
+              ],
+            ),
+          MarkerLayer(
+            markers: [
+              if (safeZone != null)
+                Marker(
+                  point: center,
+                  width: 60.0,
+                  height: 60.0,
+                  child: const Icon(
+                    Icons.home_rounded,
+                    color: Colors.blue,
+                    size: 32.0,
+                  ),
+                ),
+              if (patientLat != null && patientLng != null)
+                Marker(
+                  point: LatLng(patientLat, patientLng),
+                  width: 60.0,
+                  height: 60.0,
+                  child: Icon(
+                    Icons.person_pin_circle_rounded,
+                    color: isBreached ? Colors.red : Colors.green,
+                    size: 40.0,
+                  ),
+                ),
+            ],
+          ),
+        ],
       );
     } catch (e) {
       setState(() {
@@ -488,12 +493,12 @@ class _SafeZoneStatusScreenState extends State<SafeZoneStatusScreen> {
             const Icon(Icons.map_rounded, color: AppTheme.error, size: 64),
             const SizedBox(height: 16),
             Text(
-              'Failed to load Google Map',
+              'Failed to load Map',
               style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
-              'Check internet connection or Google API keys setup details.',
+              'Check your internet connection.',
               textAlign: TextAlign.center,
               style: GoogleFonts.outfit(fontSize: 13, color: AppTheme.textSecondary),
             ),

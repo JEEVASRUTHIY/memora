@@ -140,5 +140,108 @@ service cloud.firestore {
       
       allow update, delete: if false;
     }
+
+    match /alerts/{alertId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create: if request.auth != null && (
+        // Patient creating their own alert
+        (request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver creating alert for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.patientId is string &&
+      request.resource.data.eventType in ['Missed Reminder', 'Safe Zone Breach', 'Behavioral Risk'] &&
+      request.resource.data.severity in ['Low', 'Medium', 'High', 'Critical'] &&
+      request.resource.data.alertTimestamp is timestamp &&
+      request.resource.data.escalationLevel in ['Level 1', 'Level 2', 'Level 3', 'Level 4'] &&
+      request.resource.data.notificationStatus is string &&
+      request.resource.data.resolved is bool;
+
+      allow update: if request.auth != null && (
+        // Patient updating their own alert
+        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver updating alert for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId)
+      ) &&
+      request.resource.data.resolved is bool &&
+      request.resource.data.escalationLevel in ['Level 1', 'Level 2', 'Level 3', 'Level 4'] &&
+      request.resource.data.patientId == resource.data.patientId &&
+      request.resource.data.eventType == resource.data.eventType &&
+      request.resource.data.severity == resource.data.severity &&
+      request.resource.data.alertTimestamp == resource.data.alertTimestamp;
+
+      allow delete: if false;
+    }
+
+    match /dailyBehavior/{docId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create: if request.auth != null && (
+        // Patient creating their own behavioral entry
+        (request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver creating entry for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.patientId is string &&
+      request.resource.data.date is string &&
+      request.resource.data.hydrationAdherencePercentage is number &&
+      request.resource.data.medicationAdherencePercentage is number &&
+      (request.resource.data.activityLevel is number || request.resource.data.activityLevel is string) &&
+      request.resource.data.safeZoneExits is int &&
+      request.resource.data.missedReminders is int &&
+      request.resource.data.stabilityScore is number &&
+      request.resource.data.riskClassification in ['Stable', 'Moderate Risk', 'High Risk'];
+
+      allow update: if request.auth != null && (
+        // Patient updating their own entry
+        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver updating entry for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.patientId == resource.data.patientId &&
+      request.resource.data.date == resource.data.date;
+
+      allow delete: if false;
+    }
+
+    match /weeklySummaries/{summaryId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.patientId ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+      );
+      
+      allow create, update: if request.auth != null && (
+        // Patient creating their own summary
+        (request.auth.uid == request.resource.data.patientId) ||
+        // Caregiver creating summary for their linked patient
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
+      ) &&
+      request.resource.data.patientId is string &&
+      request.resource.data.weekId is string &&
+      request.resource.data.averageStabilityScore is number &&
+      request.resource.data.hydrationAdherencePercentage is number &&
+      request.resource.data.medicationAdherencePercentage is number &&
+      request.resource.data.alertCount is number &&
+      request.resource.data.safeZoneExits is number &&
+      request.resource.data.weeklySummaryText is string &&
+      request.resource.data.insightCards is list &&
+      request.resource.data.timestamp is timestamp;
+
+      allow delete: if false;
+    }
+
+    match /guidanceKnowledge/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
   }
 }

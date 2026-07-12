@@ -7,10 +7,118 @@ const request = require("supertest");
 const store = {};
 const dbMock = {
   collection: (colName) => {
+    const buildQuery = (initialFilters = []) => {
+      const query = {
+        filters: initialFilters,
+        where: (f, o, v) => {
+          query.filters.push([f, o, v]);
+          return query;
+        },
+        orderBy: (f, d) => {
+          query.orderByField = f;
+          query.orderByDirection = d;
+          return query;
+        },
+        startAfter: (val) => {
+          query.filters.push(["timestamp", "startAfter", val]);
+          return query;
+        },
+        limit: (val) => {
+          query.limitVal = val;
+          return query;
+        },
+        get: async () => {
+          let docs = Object.keys(store).map(id => ({
+            id,
+            data: store[id]
+          }));
+
+          // Filter by collection type
+          if (colName === "safeZones" || colName === "locationLogs" || colName === "alerts" || colName === "dailyBehavior" || colName === "weeklySummaries" || colName === "guidanceKnowledge") {
+            docs = docs.filter(doc => doc.id.startsWith(`${colName}_`))
+                       .map(doc => ({
+                         id: doc.id.substring(colName.length + 1),
+                         data: doc.data
+                       }));
+          } else {
+            // Exclude prefixed documents
+            docs = docs.filter(doc => !doc.id.startsWith("safeZones_") && !doc.id.startsWith("locationLogs_") && !doc.id.startsWith("alerts_") && !doc.id.startsWith("dailyBehavior_") && !doc.id.startsWith("weeklySummaries_") && !doc.id.startsWith("guidanceKnowledge_"));
+            
+            if (colName === "users") {
+              docs = docs.filter(doc => doc.data.role === "Patient" || doc.data.role === "Caregiver");
+            } else if (colName === "reminders") {
+              docs = docs.filter(doc => doc.data.activeStatus !== undefined && doc.data.status === undefined);
+            } else if (colName === "reminderLogs") {
+              docs = docs.filter(doc => doc.data.status !== undefined);
+            }
+          }
+
+          // Apply query filters
+          for (const [f, o, v] of query.filters) {
+            docs = docs.filter(doc => {
+              const val = doc.data[f];
+              if (o === "==") {
+                if (val && typeof val.toDate === "function" && v && typeof v.toDate === "function") {
+                  return val.toDate().getTime() === v.toDate().getTime();
+                }
+                if (val && typeof val.toDate === "function" && v instanceof Date) {
+                  return val.toDate().getTime() === v.getTime();
+                }
+                if (val && typeof val.toDate === "function" && typeof v === "object" && v !== null && v._seconds !== undefined) {
+                  return val.toDate().getTime() === new Date(v._seconds * 1000).getTime();
+                }
+                return val === v;
+              } else if (o === "<=") {
+                const valTime = (val && typeof val.toDate === "function") ? val.toDate().getTime() : new Date(val).getTime();
+                const vTime = v instanceof Date ? v.getTime() : (v && typeof v.toDate === "function" ? v.toDate().getTime() : new Date(v).getTime());
+                return valTime <= vTime;
+              } else if (o === "in") {
+                return Array.isArray(v) && v.includes(val);
+              } else if (o === "startAfter") {
+                const valTime = (val && typeof val.toDate === "function") ? val.toDate().getTime() : new Date(val).getTime();
+                const vTime = (v && typeof v.toDate === "function") ? v.toDate().getTime() : (v instanceof Date ? v.getTime() : new Date(v).getTime());
+                return valTime < vTime;
+              }
+              return true;
+            });
+          }
+
+          // Sort by orderByField if set, otherwise default to "timestamp"
+          const sortField = query.orderByField || "timestamp";
+          const isDesc = query.orderByDirection === "desc" || query.orderByDirection === "DESCENDING" || !query.orderByDirection;
+          docs.sort((a, b) => {
+            const aVal = a.data[sortField];
+            const bVal = b.data[sortField];
+            const aTime = aVal ? (typeof aVal.toDate === "function" ? aVal.toDate().getTime() : new Date(aVal).getTime()) : 0;
+            const bTime = bVal ? (typeof bVal.toDate === "function" ? bVal.toDate().getTime() : new Date(bVal).getTime()) : 0;
+            return isDesc ? bTime - aTime : aTime - bTime;
+          });
+
+          if (query.limitVal !== undefined) {
+            docs = docs.slice(0, query.limitVal);
+          }
+
+          return {
+            empty: docs.length === 0,
+            size: docs.length,
+            docs: docs.map(doc => {
+              const docRef = dbMock.collection(colName).doc(doc.id);
+              return {
+                id: doc.id,
+                data: () => doc.data,
+                ref: docRef
+              };
+            })
+          };
+        }
+      };
+      return query;
+    };
+
     const ref = {
       doc: (id) => {
         const docId = id || `mock_id_${Math.random().toString(36).substr(2, 9)}`;
-        const storeKey = (colName === "safeZones" || colName === "locationLogs" || colName === "alerts") ? `${colName}_${docId}` : docId;
+        const storeKey = (colName === "safeZones" || colName === "locationLogs" || colName === "alerts" || colName === "dailyBehavior" || colName === "weeklySummaries" || colName === "guidanceKnowledge") ? `${colName}_${docId}` : docId;
         const docRef = {
           id: docId,
           set: async (data) => {
@@ -37,109 +145,10 @@ const dbMock = {
         return docRef;
       },
       where: (field, op, value) => {
-        const query = {
-          filters: [[field, op, value]],
-          where: (f, o, v) => {
-            query.filters.push([f, o, v]);
-            return query;
-          },
-          orderBy: (f, d) => {
-            return query;
-          },
-          startAfter: (val) => {
-            // mock startAfter filter (e.g. by field value comparison if orderBy matches)
-            // for timestamp startAfter, we can append it to filters
-            query.filters.push(["timestamp", "startAfter", val]);
-            return query;
-          },
-          limit: (val) => {
-            query.limitVal = val;
-            return query;
-          },
-          get: async () => {
-            let docs = Object.keys(store).map(id => ({
-              id,
-              data: store[id]
-            }));
-
-            // Filter by collection type
-            if (colName === "safeZones" || colName === "locationLogs" || colName === "alerts") {
-              docs = docs.filter(doc => doc.id.startsWith(`${colName}_`))
-                         .map(doc => ({
-                           id: doc.id.substring(colName.length + 1),
-                           data: doc.data
-                         }));
-            } else {
-              // Exclude prefixed documents
-              docs = docs.filter(doc => !doc.id.startsWith("safeZones_") && !doc.id.startsWith("locationLogs_") && !doc.id.startsWith("alerts_"));
-              
-              if (colName === "users") {
-                docs = docs.filter(doc => doc.data.role === "Patient" || doc.data.role === "Caregiver");
-              } else if (colName === "reminders") {
-                docs = docs.filter(doc => doc.data.activeStatus !== undefined && doc.data.status === undefined);
-              } else if (colName === "reminderLogs") {
-                docs = docs.filter(doc => doc.data.status !== undefined);
-              }
-            }
-
-            // Apply query filters
-            for (const [f, o, v] of query.filters) {
-              docs = docs.filter(doc => {
-                const val = doc.data[f];
-                if (o === "==") {
-                  if (val && typeof val.toDate === "function" && v && typeof v.toDate === "function") {
-                    return val.toDate().getTime() === v.toDate().getTime();
-                  }
-                  if (val && typeof val.toDate === "function" && v instanceof Date) {
-                    return val.toDate().getTime() === v.getTime();
-                  }
-                  if (val && typeof val.toDate === "function" && typeof v === "object" && v !== null && v._seconds !== undefined) {
-                    return val.toDate().getTime() === new Date(v._seconds * 1000).getTime();
-                  }
-                  return val === v;
-                } else if (o === "<=") {
-                  const valTime = (val && typeof val.toDate === "function") ? val.toDate().getTime() : new Date(val).getTime();
-                  const vTime = v instanceof Date ? v.getTime() : (v && typeof v.toDate === "function" ? v.toDate().getTime() : new Date(v).getTime());
-                  return valTime <= vTime;
-                } else if (o === "in") {
-                  return Array.isArray(v) && v.includes(val);
-                } else if (o === "startAfter") {
-                  // val is firestore Timestamp mock or Date
-                  const valTime = (val && typeof val.toDate === "function") ? val.toDate().getTime() : new Date(val).getTime();
-                  const vTime = (v && typeof v.toDate === "function") ? v.toDate().getTime() : (v instanceof Date ? v.getTime() : new Date(v).getTime());
-                  // We sorted DESC, so starting after means the time is LESS than the cursor
-                  return valTime < vTime;
-                }
-                return true;
-              });
-            }
-
-            // Sort by timestamp DESC if orderBy was done
-            // In our queries, orderBy("timestamp", "desc") is common
-            docs.sort((a, b) => {
-              const aTime = a.data.timestamp ? (typeof a.data.timestamp.toDate === "function" ? a.data.timestamp.toDate().getTime() : new Date(a.data.timestamp).getTime()) : 0;
-              const bTime = b.data.timestamp ? (typeof b.data.timestamp.toDate === "function" ? b.data.timestamp.toDate().getTime() : new Date(b.data.timestamp).getTime()) : 0;
-              return bTime - aTime;
-            });
-
-            if (query.limitVal !== undefined) {
-              docs = docs.slice(0, query.limitVal);
-            }
-
-            return {
-              empty: docs.length === 0,
-              docs: docs.map(doc => {
-                const docRef = dbMock.collection(colName).doc(doc.id);
-                return {
-                  id: doc.id,
-                  data: () => doc.data,
-                  ref: docRef
-                };
-              })
-            };
-          }
-        };
-        return query;
+        return buildQuery([[field, op, value]]);
+      },
+      get: async () => {
+        return buildQuery([]).get();
       }
     };
     return ref;
@@ -154,6 +163,9 @@ const dbMock = {
   batch: () => {
     const operations = [];
     return {
+      set: (docRef, data) => {
+        operations.push(() => docRef.set(data));
+      },
       delete: (docRef) => {
         operations.push(() => docRef.delete());
       },
@@ -170,9 +182,12 @@ const adminMock = {
   initializeApp: () => {},
   firestore: Object.assign(() => dbMock, {
     FieldValue: {
-      serverTimestamp: () => ({
-        toDate: () => new Date()
-      })
+      serverTimestamp: () => {
+        const d = new Date();
+        return {
+          toDate: () => d
+        };
+      }
     }
   }),
   messaging: () => ({
@@ -1094,6 +1109,690 @@ describe("Cloud Functions API Tests", () => {
 
         expect(store["caregiver1"]).to.be.undefined;
         expect(store["patient1"].linkedCaregiverId).to.be.null;
+      });
+    });
+
+    describe("Alert Escalation Engine API Tests", () => {
+      beforeEach(() => {
+        adminMock.lastSentMessage = null;
+        store["patient1"] = {
+          userId: "patient1",
+          role: "Patient",
+          name: "Jimmy Patient",
+          contactDetails: "jimmy@example.com",
+          fcmToken: "patient-fcm-token",
+          linkedCaregiverId: "caregiver1",
+        };
+        store["caregiver1"] = {
+          userId: "caregiver1",
+          role: "Caregiver",
+          name: "Jane Caregiver",
+          contactDetails: "jane@example.com",
+          fcmToken: "caregiver-fcm-token",
+          linkedPatientId: "patient1",
+        };
+        store["unlinked_caregiver"] = {
+          userId: "unlinked_caregiver",
+          role: "Caregiver",
+          name: "Bob Caregiver",
+          contactDetails: "bob@example.com",
+          fcmToken: "bob-fcm-token",
+          linkedPatientId: null,
+        };
+      });
+
+      it("POST /alerts/create should successfully create an alert and send Level 1 notification", async () => {
+        const res = await request(users)
+          .post("/alerts/create")
+          .set("x-mock-user-id", "patient1")
+          .send({
+            patientId: "patient1",
+            eventType: "Safe Zone Breach",
+            severity: "High"
+          });
+
+        expect(res.status).to.equal(201);
+        expect(res.body.message).to.equal("Alert created successfully");
+        const alertId = res.body.alertId;
+        expect(alertId).to.exist;
+
+        const storedAlert = store[`alerts_${alertId}`];
+        expect(storedAlert).to.exist;
+        expect(storedAlert.patientId).to.equal("patient1");
+        expect(storedAlert.eventType).to.equal("Safe Zone Breach");
+        expect(storedAlert.severity).to.equal("High");
+        expect(storedAlert.escalationLevel).to.equal("Level 1");
+        expect(storedAlert.resolved).to.be.false;
+
+        // Verify patient received Level 1 notification
+        expect(adminMock.lastSentMessage).to.exist;
+        expect(adminMock.lastSentMessage.token).to.equal("patient-fcm-token");
+        expect(adminMock.lastSentMessage.notification.title).to.contain("Repeat Reminder");
+      });
+
+      it("POST /alerts/create should block unauthorized caller", async () => {
+        const res = await request(users)
+          .post("/alerts/create")
+          .set("x-mock-user-id", "unlinked_caregiver")
+          .send({
+            patientId: "patient1",
+            eventType: "Safe Zone Breach",
+            severity: "High"
+          });
+
+        expect(res.status).to.equal(403);
+        expect(res.body.error).to.contain("Forbidden");
+      });
+
+      it("GET /alerts/:patientId should retrieve alerts ordered by timestamp", async () => {
+        // Setup mock alerts
+        store["alerts_alert1"] = {
+          patientId: "patient1",
+          eventType: "Safe Zone Breach",
+          severity: "High",
+          alertTimestamp: new Date(Date.now() - 10000),
+          escalationLevel: "Level 1",
+          notificationStatus: "Sent",
+          resolved: false
+        };
+        store["alerts_alert2"] = {
+          patientId: "patient1",
+          eventType: "Missed Reminder",
+          severity: "Medium",
+          alertTimestamp: new Date(),
+          escalationLevel: "Level 2",
+          notificationStatus: "Sent",
+          resolved: false
+        };
+
+        const res = await request(users)
+          .get("/alerts/patient1")
+          .set("x-mock-user-id", "patient1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.length).to.equal(2);
+        // Ordering should put newer alert (alert2) first
+        expect(res.body[0].eventType).to.equal("Missed Reminder");
+        expect(res.body[1].eventType).to.equal("Safe Zone Breach");
+      });
+
+      it("POST /alerts/escalate should progressively escalate level and trigger targeted FCM notifications", async () => {
+        const alertId = "escalation_test_alert";
+        store[`alerts_${alertId}`] = {
+          patientId: "patient1",
+          eventType: "Missed Reminder",
+          severity: "High",
+          alertTimestamp: new Date(),
+          escalationLevel: "Level 1",
+          resolved: false
+        };
+
+        // Escalate Level 1 -> Level 2 (Patient Reinforced Reminder)
+        let res = await request(users)
+          .post("/alerts/escalate")
+          .set("x-mock-user-id", "caregiver1")
+          .send({ alertId });
+
+        expect(res.status).to.equal(200);
+        expect(res.body.nextLevel).to.equal("Level 2");
+        expect(store[`alerts_${alertId}`].escalationLevel).to.equal("Level 2");
+        expect(adminMock.lastSentMessage.token).to.equal("patient-fcm-token");
+        expect(adminMock.lastSentMessage.notification.title).to.contain("Urgent Reminder");
+
+        // Escalate Level 2 -> Level 3 (Caregiver Notification)
+        res = await request(users)
+          .post("/alerts/escalate")
+          .set("x-mock-user-id", "caregiver1")
+          .send({ alertId });
+
+        expect(res.status).to.equal(200);
+        expect(res.body.nextLevel).to.equal("Level 3");
+        expect(store[`alerts_${alertId}`].escalationLevel).to.equal("Level 3");
+        expect(adminMock.lastSentMessage.token).to.equal("caregiver-fcm-token");
+        expect(adminMock.lastSentMessage.notification.title).to.contain("Caregiver Alert");
+
+        // Escalate Level 3 -> Level 4 (Emergency Contact Notification)
+        res = await request(users)
+          .post("/alerts/escalate")
+          .set("x-mock-user-id", "caregiver1")
+          .send({ alertId });
+
+        expect(res.status).to.equal(200);
+        expect(res.body.nextLevel).to.equal("Level 4");
+        expect(store[`alerts_${alertId}`].escalationLevel).to.equal("Level 4");
+        expect(adminMock.lastSentMessage.token).to.equal("caregiver-fcm-token");
+        expect(adminMock.lastSentMessage.notification.title).to.contain("EMERGENCY");
+      });
+
+      it("POST /alerts/resolve should mark alert as resolved", async () => {
+        const alertId = "resolve_test_alert";
+        store[`alerts_${alertId}`] = {
+          patientId: "patient1",
+          eventType: "Missed Reminder",
+          severity: "High",
+          alertTimestamp: new Date(),
+          escalationLevel: "Level 1",
+          resolved: false
+        };
+
+        const res = await request(users)
+          .post("/alerts/resolve")
+          .set("x-mock-user-id", "patient1")
+          .send({ alertId });
+
+        expect(res.status).to.equal(200);
+        expect(res.body.message).to.contain("successfully resolved");
+        expect(store[`alerts_${alertId}`].resolved).to.be.true;
+        expect(store[`alerts_${alertId}`].resolvedAt).to.exist;
+      });
+    });
+
+    describe("Behavioral Stability Analysis API Tests", () => {
+      beforeEach(() => {
+        adminMock.lastSentMessage = null;
+        store["patient1"] = {
+          userId: "patient1",
+          role: "Patient",
+          name: "Jimmy Patient",
+          contactDetails: "jimmy@example.com",
+          fcmToken: "patient-fcm-token",
+          linkedCaregiverId: "caregiver1",
+        };
+        store["caregiver1"] = {
+          userId: "caregiver1",
+          role: "Caregiver",
+          name: "Jane Caregiver",
+          contactDetails: "jane@example.com",
+          fcmToken: "caregiver-fcm-token",
+          linkedPatientId: "patient1",
+        };
+        store["unlinked_caregiver"] = {
+          userId: "unlinked_caregiver",
+          role: "Caregiver",
+          name: "Bob Caregiver",
+          contactDetails: "bob@example.com",
+          fcmToken: "bob-fcm-token",
+          linkedPatientId: null,
+        };
+      });
+
+      it("POST /behavior/daily-score should successfully compute a stable score", async () => {
+        const res = await request(users)
+          .post("/behavior/daily-score")
+          .set("x-mock-user-id", "patient1")
+          .send({
+            patientId: "patient1",
+            date: "2026-07-12",
+            hydrationAdherencePercentage: 90,
+            medicationAdherencePercentage: 95,
+            activityLevel: "high",
+            safeZoneExits: 0,
+            missedReminders: 0
+          });
+
+        expect(res.status).to.equal(201);
+        expect(res.body.message).to.equal("Daily behavioral stability score computed successfully");
+        expect(res.body.stabilityScore).to.be.at.least(80);
+        expect(res.body.riskClassification).to.equal("Stable");
+        expect(res.body.triggeredAlertId).to.be.null;
+
+        const storedRecord = store["dailyBehavior_patient1_2026-07-12"];
+        expect(storedRecord).to.exist;
+        expect(storedRecord.hydrationAdherencePercentage).to.equal(90);
+        expect(storedRecord.riskClassification).to.equal("Stable");
+      });
+
+      it("POST /behavior/daily-score should compute a high risk score and trigger a Behavioral Risk alert", async () => {
+        const res = await request(users)
+          .post("/behavior/daily-score")
+          .set("x-mock-user-id", "caregiver1")
+          .send({
+            patientId: "patient1",
+            date: "2026-07-11",
+            hydrationAdherencePercentage: 20,
+            medicationAdherencePercentage: 10,
+            activityLevel: "low",
+            safeZoneExits: 3,
+            missedReminders: 4
+          });
+
+        expect(res.status).to.equal(201);
+        expect(res.body.stabilityScore).to.be.below(50);
+        expect(res.body.riskClassification).to.equal("High Risk");
+        expect(res.body.triggeredAlertId).to.exist;
+
+        const alertId = res.body.triggeredAlertId;
+        const storedAlert = store[`alerts_${alertId}`];
+        expect(storedAlert).to.exist;
+        expect(storedAlert.eventType).to.equal("Behavioral Risk");
+        expect(storedAlert.severity).to.equal("High");
+
+        // Verify caregiver received FCM notification for high risk alert
+        expect(adminMock.lastSentMessage).to.exist;
+        expect(adminMock.lastSentMessage.token).to.equal("caregiver-fcm-token");
+        expect(adminMock.lastSentMessage.notification.title).to.contain("High Behavioral Risk Alert");
+      });
+
+      it("GET /behavior/daily-score/:patientId should retrieve score for a specific date", async () => {
+        store["dailyBehavior_patient1_2026-07-10"] = {
+          patientId: "patient1",
+          date: "2026-07-10",
+          hydrationAdherencePercentage: 80,
+          medicationAdherencePercentage: 85,
+          activityLevel: "medium",
+          safeZoneExits: 1,
+          missedReminders: 1,
+          stabilityScore: 75.0,
+          riskClassification: "Moderate Risk"
+        };
+
+        const res = await request(users)
+          .get("/behavior/daily-score/patient1")
+          .query({ date: "2026-07-10" })
+          .set("x-mock-user-id", "patient1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.stabilityScore).to.equal(75.0);
+        expect(res.body.riskClassification).to.equal("Moderate Risk");
+      });
+
+      it("GET /behavior/history/:patientId should retrieve historical records sorted by date descending", async () => {
+        store["dailyBehavior_patient1_2026-07-08"] = {
+          patientId: "patient1",
+          date: "2026-07-08",
+          stabilityScore: 82.0,
+          riskClassification: "Stable"
+        };
+        store["dailyBehavior_patient1_2026-07-09"] = {
+          patientId: "patient1",
+          date: "2026-07-09",
+          stabilityScore: 78.0,
+          riskClassification: "Moderate Risk"
+        };
+
+        const res = await request(users)
+          .get("/behavior/history/patient1")
+          .set("x-mock-user-id", "caregiver1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.length).to.equal(2);
+        // Sorted desc by date
+        expect(res.body[0].date).to.equal("2026-07-09");
+        expect(res.body[1].date).to.equal("2026-07-08");
+      });
+
+      it("GET /behavior/history/:patientId should reject unauthorized access", async () => {
+        const res = await request(users)
+          .get("/behavior/history/patient1")
+          .set("x-mock-user-id", "unlinked_caregiver");
+
+        expect(res.status).to.equal(403);
+        expect(res.body.error).to.contain("Forbidden");
+      });
+    });
+
+    describe("Caregiver Dashboard API Tests", () => {
+      beforeEach(() => {
+        store["patient1"] = {
+          userId: "patient1",
+          role: "Patient",
+          name: "Jimmy Patient",
+          contactDetails: "jimmy@example.com",
+          fcmToken: "patient-fcm-token",
+          linkedCaregiverId: "caregiver1",
+        };
+        store["caregiver1"] = {
+          userId: "caregiver1",
+          role: "Caregiver",
+          name: "Jane Caregiver",
+          contactDetails: "jane@example.com",
+          fcmToken: "caregiver-fcm-token",
+          linkedPatientId: "patient1",
+        };
+        store["unlinked_caregiver"] = {
+          userId: "unlinked_caregiver",
+          role: "Caregiver",
+          name: "Bob Caregiver",
+          contactDetails: "bob@example.com",
+          fcmToken: "bob-fcm-token",
+          linkedPatientId: null,
+        };
+      });
+
+      it("GET /dashboard/:patientId should successfully retrieve consolidated metrics", async () => {
+        // Setup safeZone, behavior log, location log, alerts, weekly summary
+        store["safeZones_patient1"] = {
+          patientId: "patient1",
+          homeLatitude: 37.7749,
+          homeLongitude: -122.4194,
+          radius: 200,
+          activeStatus: true
+        };
+        store["locationLogs_log1"] = {
+          patientId: "patient1",
+          latitude: 37.8,
+          longitude: -122.5,
+          status: "Outside",
+          timestamp: new Date()
+        };
+        store["dailyBehavior_patient1_2026-07-12"] = {
+          patientId: "patient1",
+          date: "2026-07-12",
+          hydrationAdherencePercentage: 85.0,
+          medicationAdherencePercentage: 90.0,
+          stabilityScore: 88.0,
+          riskClassification: "Stable"
+        };
+        store["alerts_active1"] = {
+          patientId: "patient1",
+          eventType: "Missed Reminder",
+          severity: "High",
+          alertTimestamp: new Date(),
+          resolved: false
+        };
+        store["alerts_historical1"] = {
+          patientId: "patient1",
+          eventType: "Safe Zone Breach",
+          severity: "Medium",
+          alertTimestamp: new Date(Date.now() - 60000),
+          resolved: true,
+          resolvedAt: new Date()
+        };
+        store["weeklySummaries_sum1"] = {
+          patientId: "patient1",
+          insights: "Keep up the good hydration monitoring.",
+          timestamp: new Date()
+        };
+
+        const res = await request(users)
+          .get("/dashboard/patient1")
+          .set("x-mock-user-id", "caregiver1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.medicationAdherence).to.equal(90.0);
+        expect(res.body.hydrationAdherence).to.equal(85.0);
+        expect(res.body.safeZoneStatus.configured).to.be.true;
+        expect(res.body.safeZoneStatus.isBreached).to.be.true; // status is Outside
+        expect(res.body.behavioralStability.score).to.equal(88.0);
+        expect(res.body.activeAlerts.length).to.equal(1);
+        expect(res.body.activeAlerts[0].eventType).to.equal("Missed Reminder");
+        expect(res.body.historicalAlerts.length).to.equal(1);
+        expect(res.body.weeklyInsightsPreview).to.equal("Keep up the good hydration monitoring.");
+      });
+
+      it("GET /dashboard/adherence/:patientId should calculate averages and counts", async () => {
+        store["dailyBehavior_patient1_2026-07-11"] = {
+          patientId: "patient1",
+          date: "2026-07-11",
+          hydrationAdherencePercentage: 80.0,
+          medicationAdherencePercentage: 90.0,
+          stabilityScore: 85.0,
+          riskClassification: "Stable"
+        };
+        store["dailyBehavior_patient1_2026-07-12"] = {
+          patientId: "patient1",
+          date: "2026-07-12",
+          hydrationAdherencePercentage: 60.0,
+          medicationAdherencePercentage: 80.0,
+          stabilityScore: 75.0,
+          riskClassification: "Moderate Risk"
+        };
+
+        // Create 2 completed and 1 missed reminder logs within last 7 days
+        store["reminderLogs_logcompleted1"] = {
+          patientId: "patient1",
+          status: "Completed",
+          scheduledTime: new Date()
+        };
+        store["reminderLogs_logcompleted2"] = {
+          patientId: "patient1",
+          status: "Completed",
+          scheduledTime: new Date(Date.now() - 100000)
+        };
+        store["reminderLogs_logmissed1"] = {
+          patientId: "patient1",
+          status: "Missed",
+          scheduledTime: new Date()
+        };
+
+        const res = await request(users)
+          .get("/dashboard/adherence/patient1")
+          .set("x-mock-user-id", "patient1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.medicationAdherenceAverage).to.equal(85.0); // (90+80)/2
+        expect(res.body.hydrationAdherenceAverage).to.equal(70.0);  // (80+60)/2
+        expect(res.body.stabilityScoreAverage).to.equal(80.0);       // (85+75)/2
+        expect(res.body.statusCounts.Completed).to.equal(2);
+        expect(res.body.statusCounts.Missed).to.equal(1);
+      });
+
+      it("GET /dashboard/trends/:patientId should retrieve daily trends and weekly insights", async () => {
+        store["dailyBehavior_patient1_2026-07-08"] = {
+          patientId: "patient1",
+          date: "2026-07-08",
+          stabilityScore: 82.0,
+          riskClassification: "Stable"
+        };
+        store["dailyBehavior_patient1_2026-07-09"] = {
+          patientId: "patient1",
+          date: "2026-07-09",
+          stabilityScore: 78.0,
+          riskClassification: "Moderate Risk"
+        };
+        store["weeklySummaries_sum1"] = {
+          patientId: "patient1",
+          insights: "Patient safe zones were maintained.",
+          timestamp: new Date()
+        };
+
+        const res = await request(users)
+          .get("/dashboard/trends/patient1")
+          .set("x-mock-user-id", "caregiver1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.trends.length).to.equal(2);
+        expect(res.body.trends[0].date).to.equal("2026-07-08"); // reverse sorted to older first
+        expect(res.body.weeklyInsights).to.equal("Patient safe zones were maintained.");
+      });
+
+      it("GET /dashboard/:patientId should reject unauthorized access", async () => {
+        const res = await request(users)
+          .get("/dashboard/patient1")
+          .set("x-mock-user-id", "unlinked_caregiver");
+
+        expect(res.status).to.equal(403);
+        expect(res.body.error).to.contain("Forbidden");
+      });
+    });
+
+    describe("Weekly Insight Generation API Tests", () => {
+      beforeEach(() => {
+        store["patient1"] = {
+          userId: "patient1",
+          role: "Patient",
+          name: "Jimmy Patient",
+          contactDetails: "jimmy@example.com",
+          fcmToken: "patient-fcm-token",
+          linkedCaregiverId: "caregiver1",
+        };
+        store["caregiver1"] = {
+          userId: "caregiver1",
+          role: "Caregiver",
+          name: "Jane Caregiver",
+          contactDetails: "jane@example.com",
+          fcmToken: "caregiver-fcm-token",
+          linkedPatientId: "patient1",
+        };
+        store["unlinked_caregiver"] = {
+          userId: "unlinked_caregiver",
+          role: "Caregiver",
+          name: "Bob Caregiver",
+          contactDetails: "bob@example.com",
+          fcmToken: "bob-fcm-token",
+          linkedPatientId: null,
+        };
+
+        // Seed mock daily behavior data (7 days)
+        for (let i = 1; i <= 7; i++) {
+          const dateStr = `2026-07-0${i}`;
+          store[`dailyBehavior_patient1_${dateStr}`] = {
+            patientId: "patient1",
+            date: dateStr,
+            hydrationAdherencePercentage: 85.0,
+            medicationAdherencePercentage: 90.0,
+            activityLevel: "medium",
+            safeZoneExits: 0,
+            missedReminders: 0,
+            stabilityScore: 88.0,
+            riskClassification: "Stable"
+          };
+        }
+      });
+
+      it("POST /weekly-summary/generate should compute summary, query guidanceKnowledge RAG triggers, and keep latest 4 summaries", async () => {
+        // Generate summary
+        let res = await request(users)
+          .post("/weekly-summary/generate")
+          .set("x-mock-user-id", "caregiver1")
+          .send({
+            patientId: "patient1",
+            weekId: "2026-W01"
+          });
+
+        expect(res.status).to.equal(201);
+        expect(res.body.message).to.equal("Weekly summary generated successfully");
+        const summaryId = res.body.summaryId;
+        expect(summaryId).to.equal("patient1_2026-W01");
+
+        const summary = store[`weeklySummaries_${summaryId}`];
+        expect(summary).to.exist;
+        expect(summary.averageStabilityScore).to.equal(88.0);
+        expect(summary.hydrationAdherencePercentage).to.equal(85.0);
+        expect(summary.medicationAdherencePercentage).to.equal(90.0);
+        expect(summary.insightCards.length).to.be.at.least(1);
+
+        // Verify safety rules: should not contain diagnosis words like "dementia", "alzheimer's" or clinical treatment advices.
+        const summaryText = summary.weeklySummaryText.toLowerCase();
+        expect(summaryText).to.not.contain("diagnose");
+        expect(summaryText).to.not.contain("dementia");
+
+        // Retention Policy: Create 4 more summaries to check if older ones are pruned (keep latest 4)
+        for (let w = 2; w <= 5; w++) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          await request(users)
+            .post("/weekly-summary/generate")
+            .set("x-mock-user-id", "caregiver1")
+            .send({
+              patientId: "patient1",
+              weekId: `2026-W0${w}`
+            });
+        }
+
+        // We generated W1, W2, W3, W4, W5. Oldest (W1) should be deleted, leaving W2, W3, W4, W5.
+        expect(store["weeklySummaries_patient1_2026-W01"]).to.be.undefined;
+        expect(store["weeklySummaries_patient1_2026-W02"]).to.exist;
+        expect(store["weeklySummaries_patient1_2026-W05"]).to.exist;
+      });
+
+      it("GET /weekly-summary/:patientId should retrieve summaries sorted by timestamp descending", async () => {
+        store["weeklySummaries_sum1"] = {
+          patientId: "patient1",
+          weekId: "2026-W01",
+          averageStabilityScore: 85.0,
+          timestamp: new Date(Date.now() - 100000)
+        };
+        store["weeklySummaries_sum2"] = {
+          patientId: "patient1",
+          weekId: "2026-W02",
+          averageStabilityScore: 90.0,
+          timestamp: new Date()
+        };
+
+        const res = await request(users)
+          .get("/weekly-summary/patient1")
+          .set("x-mock-user-id", "patient1");
+
+        expect(res.status).to.equal(200);
+        expect(res.body.length).to.equal(2);
+        // Order by timestamp desc
+        expect(res.body[0].weekId).to.equal("2026-W02");
+        expect(res.body[1].weekId).to.equal("2026-W01");
+      });
+
+      it("GET /weekly-summary/:patientId should block unauthorized caller", async () => {
+        const res = await request(users)
+          .get("/weekly-summary/patient1")
+          .set("x-mock-user-id", "unlinked_caregiver");
+
+        expect(res.status).to.equal(403);
+        expect(res.body.error).to.contain("Forbidden");
+      });
+    });
+
+    describe("SOS Emergency System API Tests", () => {
+      beforeEach(() => {
+        store["patient1"] = {
+          userId: "patient1",
+          role: "Patient",
+          name: "Jimmy Patient",
+          contactDetails: "jimmy@example.com",
+          fcmToken: "patient-fcm-token",
+          linkedCaregiverId: "caregiver1",
+          emergencyContacts: [
+            { name: "Emergency Contact 1", phone: "123-456", fcmToken: "emergency-fcm-token-1" }
+          ]
+        };
+        store["caregiver1"] = {
+          userId: "caregiver1",
+          role: "Caregiver",
+          name: "Jane Caregiver",
+          contactDetails: "jane@example.com",
+          fcmToken: "caregiver-fcm-token",
+          linkedPatientId: "patient1",
+        };
+        store["unlinked_caregiver"] = {
+          userId: "unlinked_caregiver",
+          role: "Caregiver",
+          name: "Bob Caregiver",
+          contactDetails: "bob@example.com",
+          fcmToken: "bob-fcm-token",
+          linkedPatientId: null,
+        };
+      });
+
+      it("POST /sos/trigger should successfully create high severity alert and notify caregiver and emergency contacts", async () => {
+        const res = await request(users)
+          .post("/sos/trigger")
+          .set("x-mock-user-id", "patient1")
+          .send({ patientId: "patient1" });
+
+        expect(res.status).to.equal(201);
+        expect(res.body.message).to.equal("SOS alert triggered successfully");
+        const alertId = res.body.alertId;
+        expect(alertId).to.exist;
+
+        const alert = store[`alerts_${alertId}`];
+        expect(alert).to.exist;
+        expect(alert.eventType).to.equal("SOS Trigger");
+        expect(alert.severity).to.equal("HIGH");
+        expect(alert.escalationLevel).to.equal("Level 4");
+        expect(alert.resolved).to.be.false;
+
+        // Verify caregiver and emergency contact notifications were dispatched (testing adminMock.lastSentMessage)
+        expect(adminMock.lastSentMessage).to.exist;
+        expect(adminMock.lastSentMessage.notification.title).to.contain("SOS Emergency");
+        expect(adminMock.lastSentMessage.data.escalationLevel).to.equal("Level 4");
+      });
+
+      it("POST /sos/trigger should block unauthorized caller", async () => {
+        const res = await request(users)
+          .post("/sos/trigger")
+          .set("x-mock-user-id", "unlinked_caregiver")
+          .send({ patientId: "patient1" });
+
+        expect(res.status).to.equal(403);
+        expect(res.body.error).to.contain("Forbidden");
       });
     });
   });
