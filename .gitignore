@@ -47,3 +47,25 @@ app.*.map.json
 # Agent / IDE config
 .agents/
 skills-lock.json
+
+# Security — never commit these
+google-services.json.bak
+google-services.json.backup
+GoogleService-Info.plist.bak
+GoogleService-Info.plist.backup
+.env
+.env.*
+*.env
+*.keystore
+*.jks
+key.properties
+android/key.properties
+
+android/local.properties
+**/local.properties
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+google-services.json
+GoogleService-Info.plist
+functions/.env

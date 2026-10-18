@@ -1,247 +1,159 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      // Allow read if user is authenticated and is either the owner or linked to the owner
-      allow read: if request.auth != null && (
-        request.auth.uid == userId ||
-        resource.data.linkedPatientId == request.auth.uid ||
-        resource.data.linkedCaregiverId == request.auth.uid
-      );
-      
-      allow create: if request.auth != null && request.auth.uid == userId;
-      
-      allow update: if request.auth != null && (
-        // Owner can update their own document, but NOT role, linkedPatientId, or linkedCaregiverId once set
-        (request.auth.uid == userId && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) &&
-         (
-           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['linkedPatientId', 'linkedCaregiverId']) ||
-           (resource.data.linkedPatientId == null && request.resource.data.linkedPatientId is string) ||
-           (resource.data.linkedCaregiverId == null && request.resource.data.linkedCaregiverId is string)
-         )) ||
-        // A caregiver can link themselves to a patient if the patient is not yet linked
-        (request.resource.data.linkedCaregiverId == request.auth.uid && 
-         resource.data.linkedCaregiverId == null &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedCaregiverId']))
-      );
-      
-      allow delete: if request.auth != null && request.auth.uid == userId;
+    function authed() { return request.auth != null; }
+    function owner(uid) { return authed() && request.auth.uid == uid; }
+    function caregiver() {
+      return authed() && user(request.auth.uid).role == 'caregiver';
+    }
+    function user(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+    function patientSelf(patientId) {
+      return authed() &&
+        user(request.auth.uid).role == 'patient' &&
+        user(request.auth.uid).patientId == patientId;
+    }
+    function activeLink(patientId) {
+      return authed() &&
+        exists(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)) &&
+        get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.status == 'active';
+    }
+    function linked(patientId) {
+      return patientSelf(patientId) || activeLink(patientId);
+    }
+    function primaryCaregiver(patientId) {
+      return activeLink(patientId) &&
+        get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.role == 'primary';
     }
 
-    match /reminders/{reminderId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-      
-      allow create: if request.auth != null && 
-        (request.auth.uid == request.resource.data.patientId ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId) &&
-        request.resource.data.patientId is string &&
-        request.resource.data.description is string && request.resource.data.description.size() > 0 &&
-        request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
-        request.resource.data.scheduledTime is timestamp &&
-        request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
-        request.resource.data.escalationWaitingDuration is int &&
-        request.resource.data.activeStatus is bool &&
-        request.resource.data.snoozeEnabled is bool;
-
-      allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.patientId ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId) &&
-        request.resource.data.patientId == resource.data.patientId &&
-        request.resource.data.description is string && request.resource.data.description.size() > 0 &&
-        request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
-        request.resource.data.scheduledTime is timestamp &&
-        request.resource.data.severityLevel in ['Low', 'Medium', 'High', 'Critical'] &&
-        request.resource.data.activeStatus is bool &&
-        request.resource.data.snoozeEnabled is bool;
-
-      allow delete: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-    }
-
-    match /reminderLogs/{logId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-      
-      allow create: if request.auth != null && (
-        // Patient creating their own log
-        (request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver creating log for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.patientId is string &&
-      request.resource.data.reminderId is string &&
-      request.resource.data.description is string && request.resource.data.description.size() > 0 &&
-      request.resource.data.reminderType in ['Medication', 'Routine', 'Appointment'] &&
-      request.resource.data.scheduledTime is timestamp &&
-      request.resource.data.status in ['Triggered', 'Completed', 'Missed', 'Snoozed', 'Confirmed'] &&
-      request.resource.data.actionTime is timestamp &&
-      request.resource.data.escalationNotified is bool &&
-      request.resource.data.snoozeEnabled is bool &&
-      (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp);
-
-      allow update: if request.auth != null && (
-        // Patient updating their own log
-        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver updating log for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.status in ['Triggered', 'Completed', 'Missed', 'Snoozed', 'Confirmed'] &&
-      request.resource.data.actionTime is timestamp &&
-      request.resource.data.escalationNotified is bool &&
-      request.resource.data.patientId == resource.data.patientId &&
-      request.resource.data.reminderId == resource.data.reminderId &&
-      request.resource.data.description == resource.data.description &&
-      request.resource.data.reminderType == resource.data.reminderType &&
-      request.resource.data.scheduledTime == resource.data.scheduledTime &&
-      request.resource.data.snoozeEnabled == resource.data.snoozeEnabled &&
-      (!('completedAt' in request.resource.data) || request.resource.data.completedAt == null || request.resource.data.completedAt is timestamp);
-
+    match /users/{uid} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) &&
+        request.resource.data.role in ['patient', 'caregiver'] &&
+        request.resource.data.email is string &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if owner(uid) &&
+        request.resource.data.role == resource.data.role &&
+        (!('patientId' in resource.data) ||
+          request.resource.data.patientId == resource.data.patientId);
       allow delete: if false;
     }
 
-    match /safeZones/{patientId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == patientId
-      );
-      
-      allow create, update: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == patientId &&
-        request.resource.data.patientId == patientId &&
-        request.resource.data.homeLatitude is number &&
-        request.resource.data.homeLongitude is number &&
-        request.resource.data.radius is number &&
-        request.resource.data.radius > 0 &&
-        request.resource.data.activeStatus is bool;
-
-      allow delete: if false;
-    }
-
-    match /locationLogs/{logId} {
-      allow read: if request.auth != null && (
-        resource.data.patientId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-      
-      allow create: if request.auth != null && 
-        request.resource.data.patientId == request.auth.uid &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Patient' &&
-        request.resource.data.status in ['Inside', 'Outside'] &&
-        request.resource.data.timestamp is timestamp;
-      
+    match /emailIndex/{email} {
+      allow read: if authed();
+      allow create: if authed() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 
-    match /alerts/{alertId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
+    match /patientCodes/{patientId} {
+      allow get: if authed();
+      allow create: if authed() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /patientPrimary/{patientId} {
+      allow get: if authed();
+      allow create: if authed() &&
+        request.resource.data.caregiverUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /patients/{patientId} {
+      allow read: if linked(patientId) || caregiver();
+      allow create: if authed() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if (
+        owner(resource.data.ownerUid) &&
+        request.resource.data.ownerUid == resource.data.ownerUid
+      ) || (
+        caregiver() &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['primaryCaregiverUid', 'secondaryCount']) &&
+        (
+          (resource.data.primaryCaregiverUid == null &&
+            request.resource.data.primaryCaregiverUid == request.auth.uid) ||
+          (resource.data.primaryCaregiverUid != null &&
+            request.resource.data.secondaryCount == resource.data.secondaryCount + 1)
+        )
       );
-      
-      allow create: if request.auth != null && (
-        // Patient creating their own alert
-        (request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver creating alert for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.patientId is string &&
-      request.resource.data.eventType in ['Missed Reminder', 'Safe Zone Breach', 'Behavioral Risk'] &&
-      request.resource.data.severity in ['Low', 'Medium', 'High', 'Critical'] &&
-      request.resource.data.alertTimestamp is timestamp &&
-      request.resource.data.escalationLevel in ['Level 1', 'Level 2', 'Level 3', 'Level 4'] &&
-      request.resource.data.notificationStatus is string &&
-      request.resource.data.resolved is bool;
-
-      allow update: if request.auth != null && (
-        // Patient updating their own alert
-        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver updating alert for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId)
-      ) &&
-      request.resource.data.resolved is bool &&
-      request.resource.data.escalationLevel in ['Level 1', 'Level 2', 'Level 3', 'Level 4'] &&
-      request.resource.data.patientId == resource.data.patientId &&
-      request.resource.data.eventType == resource.data.eventType &&
-      request.resource.data.severity == resource.data.severity &&
-      request.resource.data.alertTimestamp == resource.data.alertTimestamp;
-
       allow delete: if false;
     }
 
-    match /dailyBehavior/{docId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-      
-      allow create: if request.auth != null && (
-        // Patient creating their own behavioral entry
-        (request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver creating entry for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.patientId is string &&
-      request.resource.data.date is string &&
-      request.resource.data.hydrationAdherencePercentage is number &&
-      request.resource.data.medicationAdherencePercentage is number &&
-      (request.resource.data.activityLevel is number || request.resource.data.activityLevel is string) &&
-      request.resource.data.safeZoneExits is int &&
-      request.resource.data.missedReminders is int &&
-      request.resource.data.stabilityScore is number &&
-      request.resource.data.riskClassification in ['Stable', 'Moderate Risk', 'High Risk'];
-
-      allow update: if request.auth != null && (
-        // Patient updating their own entry
-        (request.auth.uid == resource.data.patientId && request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver updating entry for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.patientId == resource.data.patientId &&
-      request.resource.data.date == resource.data.date;
-
+    match /links/{linkId} {
+      allow read: if caregiver() || patientSelf(resource.data.patientId);
+      allow create: if caregiver() &&
+        request.resource.data.caregiverUid == request.auth.uid &&
+        request.resource.data.patientId is string &&
+        (
+          (request.resource.data.role == 'primary' &&
+            request.resource.data.status == 'active' &&
+            getAfter(/databases/$(database)/documents/patientPrimary/$(request.resource.data.patientId)).data.caregiverUid == request.auth.uid) ||
+          (request.resource.data.role == 'secondary' &&
+            request.resource.data.status == 'pending' &&
+            exists(/databases/$(database)/documents/patientPrimary/$(request.resource.data.patientId)) &&
+            get(/databases/$(database)/documents/patientPrimary/$(request.resource.data.patientId)).data.caregiverUid != request.auth.uid)
+        );
+      allow update: if caregiver() &&
+        primaryCaregiver(resource.data.patientId) &&
+        resource.data.role == 'secondary' &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'respondedAt']);
       allow delete: if false;
     }
 
-    match /weeklySummaries/{summaryId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.patientId ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == resource.data.patientId
-      );
-      
-      allow create, update: if request.auth != null && (
-        // Patient creating their own summary
-        (request.auth.uid == request.resource.data.patientId) ||
-        // Caregiver creating summary for their linked patient
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedPatientId == request.resource.data.patientId)
-      ) &&
-      request.resource.data.patientId is string &&
-      request.resource.data.weekId is string &&
-      request.resource.data.averageStabilityScore is number &&
-      request.resource.data.hydrationAdherencePercentage is number &&
-      request.resource.data.medicationAdherencePercentage is number &&
-      request.resource.data.alertCount is number &&
-      request.resource.data.safeZoneExits is number &&
-      request.resource.data.weeklySummaryText is string &&
-      request.resource.data.insightCards is list &&
-      request.resource.data.timestamp is timestamp;
+    match /caregiverLinks/{caregiverUid}/patients/{patientId} {
+      allow read: if owner(caregiverUid);
+      allow create, update: if (owner(caregiverUid) || primaryCaregiver(patientId)) &&
+        request.resource.data.patientId == patientId &&
+        request.resource.data.role in ['primary', 'secondary'] &&
+        request.resource.data.status in ['active', 'pending'];
+      allow delete: if owner(caregiverUid) || primaryCaregiver(patientId);
+    }
 
+    match /patients/{patientId}/reminders/{reminderId} {
+      allow read: if linked(patientId);
+      allow create, update, delete: if primaryCaregiver(patientId);
+    }
+
+    match /patients/{patientId}/reminderOccurrences/{occurrenceId} {
+      allow read: if linked(patientId);
+      allow create, update, delete: if primaryCaregiver(patientId);
+      allow update: if patientSelf(patientId) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'snoozedUntil', 'snoozeCount', 'repeatCount', 'shownTime']);
+    }
+
+    match /patients/{patientId}/reminderEvents/{eventId} {
+      allow read: if linked(patientId);
+      allow create: if patientSelf(patientId);
+      allow update, delete: if false;
+    }
+
+    match /patients/{patientId}/safeZones/{zoneId} {
+      allow read: if linked(patientId);
+      allow create, update: if primaryCaregiver(patientId);
       allow delete: if false;
     }
 
-    match /guidanceKnowledge/{docId} {
-      allow read: if request.auth != null;
+    match /patients/{patientId}/alerts/{alertId} {
+      allow read: if linked(patientId);
+      allow create: if patientSelf(patientId);
+      allow update: if activeLink(patientId) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['acknowledged', 'acknowledgedBy', 'acknowledgedAt']);
+      allow delete: if false;
+    }
+
+    match /patients/{patientId}/weeks/{weekId} {
+      allow read: if linked(patientId);
       allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

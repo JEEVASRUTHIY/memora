@@ -1,89 +1,33 @@
 {
+  "fieldOverrides": [],
   "indexes": [
     {
-      "collectionGroup": "reminders",
       "queryScope": "COLLECTION",
+      "collectionGroup": "reminderOccurrences",
       "fields": [
         {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
+          "order": "ASCENDING",
+          "fieldPath": "status"
         },
         {
-          "fieldPath": "activeStatus",
-          "order": "ASCENDING"
+          "order": "ASCENDING",
+          "fieldPath": "scheduledTime"
         }
       ]
     },
     {
-      "collectionGroup": "reminderLogs",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
+      "collectionGroup": "reminderOccurrences",
       "fields": [
         {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
+          "order": "ASCENDING",
+          "fieldPath": "status"
         },
         {
-          "fieldPath": "scheduledTime",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "locationLogs",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "alerts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "alertTimestamp",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "dailyBehavior",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "date",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "weeklySummaries",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "patientId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
+          "order": "ASCENDING",
+          "fieldPath": "nextNotifyAt"
         }
       ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }
