@@ -5,43 +5,6 @@ It helps a patient stay connected with caregivers.
 It also helps caregivers view reminders and manage care links.
 The app has two roles: Patient and Caregiver.
 
-## Working Together
-
-### Start Here
-
-1. Read [README.md](README.md).
-2. Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-3. Read [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
-4. Read [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
-
-The code is organised by feature folders under `lib/features/`.
-
-### Project Notes
-
-- [AGENTS.md](AGENTS.md): Session rules for the coding assistant.
-- [AGENT_RULES.md](AGENT_RULES.md): Project rules for working safely.
-- [PROGRESS.md](PROGRESS.md): Current phase and completed work.
-- [MEMORA_PROJECT_AUDIT.md](MEMORA_PROJECT_AUDIT.md): Project audit notes.
-- [docs/BASE_PLAN.md](docs/BASE_PLAN.md): The main build plan.
-- [docs/FREE_MODE.md](docs/FREE_MODE.md): Firebase free-plan limits.
-- [docs/STATUS.md](docs/STATUS.md): Current project status.
-- [docs/TESTING.md](docs/TESTING.md): Testing guidance.
-- [docs/rules_tests.md](docs/rules_tests.md): Firestore rules test notes.
-- [.github/pull_request_template.md](.github/pull_request_template.md): Pull request checklist.
-- [lib/features/sos/README.md](lib/features/sos/README.md): Planned SOS feature.
-- [lib/features/medicine/README.md](lib/features/medicine/README.md): Planned medicine feature.
-- [lib/features/voice_assistant/README.md](lib/features/voice_assistant/README.md): Planned voice feature.
-- [lib/features/weekly_report/README.md](lib/features/weekly_report/README.md): Planned weekly report feature.
-
-### Simple Team Routine
-
-1. Create a branch for your change.
-2. Make small commits with clear messages.
-3. Push the branch.
-4. Open a pull request for review.
-
-`google-services.json` and `functions/.env` are not on GitHub. Ask the project owner for them.
-
 ## How It Works
 
 ### Patient

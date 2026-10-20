@@ -10,10 +10,10 @@ class FeatureFlags {
   static const bool sos = false;
 
   /// Medicine management tab (caregiver) and tracking (patient).
-  static const bool medicine = false;
+  static const bool medicine = true;
 
   /// Voice assistant FAB on patient home screen.
-  static const bool voice = false;
+  static const bool voice = true;
 
   /// Weekly behaviour report card on caregiver home screen.
   static const bool weeklyReport = false;

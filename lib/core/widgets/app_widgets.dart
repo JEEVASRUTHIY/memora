@@ -51,7 +51,7 @@ class AppButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.error,
             foregroundColor: AppColors.white,
-            minimumSize: const Size.fromHeight(64),
+            minimumSize: const Size(0, 56),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusButton)),
           ),
@@ -68,7 +68,7 @@ class AppButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primary,
             foregroundColor: AppColors.white,
-            minimumSize: const Size.fromHeight(64),
+            minimumSize: const Size(0, 56),
             textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppTheme.radiusButton)),

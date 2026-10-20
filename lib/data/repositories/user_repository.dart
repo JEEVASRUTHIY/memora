@@ -210,16 +210,34 @@ class UserRepository {
 
   /// Adds an FCM token to the user's fcmTokens array (no duplicates).
   Future<void> addFcmToken(String uid, String token) async {
-    await _col.doc(uid).update({
-      'fcmTokens': FieldValue.arrayUnion([token]),
-    });
+    if (token.isEmpty) return;
+    try {
+      await _col.doc(uid).update({
+        'fcmTokens': FieldValue.arrayUnion([token]),
+      });
+    } on FirebaseException catch (e) {
+      if (e.code == 'not-found') {
+        await _col.doc(uid).set({
+          'fcmTokens': [token],
+        }, SetOptions(merge: true));
+      } else {
+        debugPrint('[UserRepository] addFcmToken error: $e');
+      }
+    } catch (e) {
+      debugPrint('[UserRepository] addFcmToken unexpected error: $e');
+    }
   }
 
   /// Removes an FCM token from the user's fcmTokens array (called on logout).
   Future<void> removeFcmToken(String uid, String token) async {
-    await _col.doc(uid).update({
-      'fcmTokens': FieldValue.arrayRemove([token]),
-    });
+    if (token.isEmpty) return;
+    try {
+      await _col.doc(uid).update({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+      });
+    } catch (e) {
+      debugPrint('[UserRepository] removeFcmToken error: $e');
+    }
   }
 
   /// Look up a patient by their short patientId (e.g. "AB12CD34").

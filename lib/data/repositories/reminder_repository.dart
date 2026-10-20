@@ -68,6 +68,19 @@ class ReminderRepository {
         });
   }
 
+  /// Returns all pending and snoozed occurrences in real time for caregivers,
+  /// so they can see snoozed status immediately even before the snooze window expires.
+  Stream<List<ReminderOccurrenceModel>> watchActiveOccurrences(
+      String patientId) {
+    return _occurrences(patientId)
+        .where('status', whereIn: ['pending', 'snoozed'])
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => ReminderOccurrenceModel.fromMap(d.data(), d.id))
+            .toList()
+          ..sort((a, b) => b.scheduledTime.compareTo(a.scheduledTime)));
+  }
+
   /// Returns all pending/snoozed future occurrences (for notification scheduling).
   Future<List<ReminderOccurrenceModel>> getPendingFutureOccurrences(
       String patientId) async {

@@ -39,7 +39,16 @@ final actionableOccurrencesProvider =
       .watchActionableOccurrences(patientId);
 });
 
-// ── Caregiver: manage reminders ────────────────────────────────────────────
+/// All active (pending or currently snoozed) occurrences for the caregiver dashboard.
+final activeOccurrencesProvider =
+    StreamProvider.family<List<ReminderOccurrenceModel>, String>(
+        (ref, patientId) {
+  return ref
+      .watch(reminderRepositoryProvider)
+      .watchActiveOccurrences(patientId);
+});
+
+// ── Caregiver: manage reminders ───────────────────────────────────────────
 
 class ReminderManagementNotifier
     extends FamilyNotifier<AsyncValue<void>, String> {
@@ -89,7 +98,10 @@ class ReminderManagementNotifier
   }
 }
 
-final reminderManagementProvider = NotifierProvider.family<ReminderManagementNotifier, AsyncValue<void>, String>(ReminderManagementNotifier.new);
+final reminderManagementProvider = NotifierProvider.family<
+    ReminderManagementNotifier,
+    AsyncValue<void>,
+    String>(ReminderManagementNotifier.new);
 
 // ── Patient: action notifier ───────────────────────────────────────────────
 
@@ -131,4 +143,7 @@ class ReminderActionNotifier extends FamilyNotifier<AsyncValue<void>, String> {
   }
 }
 
-final reminderActionProvider = NotifierProvider.family<ReminderActionNotifier, AsyncValue<void>, String>(ReminderActionNotifier.new);
+final reminderActionProvider = NotifierProvider.family<
+    ReminderActionNotifier,
+    AsyncValue<void>,
+    String>(ReminderActionNotifier.new);

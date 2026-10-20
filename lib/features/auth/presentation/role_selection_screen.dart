@@ -48,19 +48,19 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   'Welcome to Memora',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
-                    fontSize: 32,
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   'Select your role to personalize your experience.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
-                      fontSize: 16, color: AppTheme.textSecondary),
+                      fontSize: 14, color: AppTheme.textSecondary),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 36),
 
                 Expanded(
                   child: SingleChildScrollView(
@@ -117,7 +117,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                       'Continue',
                       style: GoogleFonts.outfit(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 15,
                         color: _selectedRole != null
                             ? AppColors.white
                             : AppTheme.textSecondary,
@@ -133,7 +133,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   children: [
                     Text(
                       'Already have an account? ',
-                      style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+                      style: GoogleFonts.outfit(fontSize: 13.5, color: AppTheme.textSecondary),
                     ),
                     GestureDetector(
                       onTap: () {
@@ -142,6 +142,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                       child: Text(
                         'Log In',
                         style: GoogleFonts.outfit(
+                          fontSize: 13.5,
                           color: AppTheme.primary,
                           fontWeight: FontWeight.bold,
                         ),
@@ -185,12 +186,12 @@ class _RoleCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           color: isSelected
               ? AppTheme.primary.withOpacity(0.08)
               : AppTheme.surface.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected ? AppTheme.primary : AppColors.white.withOpacity(0.08),
             width: isSelected ? 2.0 : 1.5,
@@ -199,8 +200,8 @@ class _RoleCard extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: AppTheme.primary.withOpacity(0.2),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
                   )
                 ]
               : null,
@@ -208,7 +209,7 @@ class _RoleCard extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isSelected
                     ? AppTheme.primary.withOpacity(0.2)
@@ -216,12 +217,12 @@ class _RoleCard extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: Icon(icon,
-                  size: 32,
+                  size: 26,
                   color: isSelected
                       ? AppTheme.primary
                       : AppTheme.textSecondary),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,18 +230,18 @@ class _RoleCard extends StatelessWidget {
                   Text(
                     title,
                     style: GoogleFonts.outfit(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: isSelected
                           ? AppTheme.primary
                           : AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     description,
                     style: GoogleFonts.outfit(
-                        fontSize: 14, color: AppTheme.textSecondary),
+                        fontSize: 13, color: AppTheme.textSecondary),
                   ),
                 ],
               ),

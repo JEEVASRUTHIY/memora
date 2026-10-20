@@ -15,7 +15,9 @@ class AppTheme {
   static const textSecondary = onSurfaceMid;
   static const accent = warning;
   static const bgGradient = LinearGradient(colors: [background, background]);
-  static const primaryGradient = LinearGradient(colors: [primaryDark, primaryDark]);
+  static const primaryGradient = LinearGradient(
+    colors: [primaryDark, primaryDark],
+  );
 
   // ── Palette ────────────────────────────────────────────────────────────────
   static const Color primary = AppColors.primary;
@@ -34,8 +36,8 @@ class AppTheme {
   static const Color errorSurface = AppColors.emergencySurface;
 
   // ── Spacing ────────────────────────────────────────────────────────────────
-  static const double sp4  = 4;
-  static const double sp8  = 8;
+  static const double sp4 = 4;
+  static const double sp8 = 8;
   static const double sp12 = 12;
   static const double sp16 = 16;
   static const double sp24 = 24;
@@ -43,39 +45,54 @@ class AppTheme {
   static const double sp48 = 48;
 
   // ── Radius ─────────────────────────────────────────────────────────────────
-  static const double radiusCard   = 20;
+  static const double radiusCard = 20;
   static const double radiusButton = 14;
-  static const double radiusChip   = 32;
-  static const double radiusInput  = 12;
+  static const double radiusChip = 32;
+  static const double radiusInput = 12;
 
   // ── Shadows ────────────────────────────────────────────────────────────────
   static List<BoxShadow> get cardShadow => [
-        BoxShadow(
-          color: AppColors.shadow.withOpacity(0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ];
+    BoxShadow(
+      color: AppColors.shadow.withOpacity(0.06),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ];
 
   // ── Text styles (caregiver scale) ─────────────────────────────────────────
-  static TextStyle heading1(BuildContext context) =>
-      GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w700, color: onSurface);
-  static TextStyle heading2(BuildContext context) =>
-      GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: onSurface);
+  static TextStyle heading1(BuildContext context) => GoogleFonts.outfit(
+    fontSize: 24,
+    fontWeight: FontWeight.w700,
+    color: onSurface,
+  );
+  static TextStyle heading2(BuildContext context) => GoogleFonts.outfit(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    color: onSurface,
+  );
   static TextStyle body(BuildContext context) =>
       GoogleFonts.outfit(fontSize: 16, color: onSurface);
   static TextStyle bodySmall(BuildContext context) =>
       GoogleFonts.outfit(fontSize: 13, color: onSurfaceMid);
-  static TextStyle label(BuildContext context) =>
-      GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: onSurfaceMid);
+  static TextStyle label(BuildContext context) => GoogleFonts.outfit(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    color: onSurfaceMid,
+  );
 
   // ── Text styles (patient scale — large, accessible) ───────────────────────
-  static TextStyle patientHeading(BuildContext context) =>
-      GoogleFonts.outfit(fontSize: 36, fontWeight: FontWeight.w700, color: onSurface);
+  static TextStyle patientHeading(BuildContext context) => GoogleFonts.outfit(
+    fontSize: 36,
+    fontWeight: FontWeight.w700,
+    color: onSurface,
+  );
   static TextStyle patientBody(BuildContext context) =>
       GoogleFonts.outfit(fontSize: 24, color: onSurface);
-  static TextStyle patientLabel(BuildContext context) =>
-      GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600, color: onSurfaceMid);
+  static TextStyle patientLabel(BuildContext context) => GoogleFonts.outfit(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    color: onSurfaceMid,
+  );
 
   // ── Base ThemeData ─────────────────────────────────────────────────────────
   static ThemeData _base() {
@@ -101,7 +118,7 @@ class AppTheme {
         bodyLarge: GoogleFonts.outfit(fontSize: 16, color: onSurface),
         bodyMedium: GoogleFonts.outfit(fontSize: 16, color: onSurface),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
         shadowColor: AppColors.transparent,
@@ -115,7 +132,10 @@ class AppTheme {
         fillColor: surfaceVar,
         hintStyle: TextStyle(color: onSurfaceLow, fontSize: 15),
         labelStyle: TextStyle(color: onSurfaceMid),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusInput),
           borderSide: BorderSide(color: onSurfaceLow.withOpacity(0.3)),
@@ -177,7 +197,10 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: onSurface,
-        contentTextStyle: GoogleFonts.outfit(color: AppColors.white, fontSize: 14),
+        contentTextStyle: GoogleFonts.outfit(
+          color: AppColors.white,
+          fontSize: 14,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         behavior: SnackBarBehavior.floating,
       ),
@@ -203,19 +226,25 @@ class AppTheme {
       navigationBarTheme: const NavigationBarThemeData(
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.primaryContainer,
-        iconTheme: WidgetStatePropertyAll(IconThemeData(color: AppColors.primary)),
-        labelTextStyle: WidgetStatePropertyAll(TextStyle(color: AppColors.text)),
+        iconTheme: WidgetStatePropertyAll(
+          IconThemeData(color: AppColors.primary),
+        ),
+        labelTextStyle: WidgetStatePropertyAll(
+          TextStyle(color: AppColors.text),
+        ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? AppColors.primary
-              : AppColors.disabled,
+          (states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.primary
+                  : AppColors.disabled,
         ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected)
-              ? AppColors.primaryContainer
-              : AppColors.outline,
+          (states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.primaryContainer
+                  : AppColors.outline,
         ),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
@@ -235,41 +264,49 @@ class AppTheme {
 
   /// Patient theme — larger text, bigger touch targets, high contrast.
   static ThemeData get patientTheme => _base().copyWith(
-        textTheme: GoogleFonts.outfitTextTheme().copyWith(
-          bodyLarge: GoogleFonts.outfit(fontSize: 24, color: onSurface),
-          bodyMedium: GoogleFonts.outfit(fontSize: 24, color: onSurface),
-          bodySmall: GoogleFonts.outfit(fontSize: 24, color: onSurface),
-          titleLarge: GoogleFonts.outfit(fontSize: 36, fontWeight: FontWeight.w700, color: onSurface),
-          titleMedium: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w600, color: onSurface),
-          labelLarge: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
+    textTheme: GoogleFonts.outfitTextTheme().copyWith(
+      bodyLarge: GoogleFonts.outfit(fontSize: 24, color: onSurface),
+      bodyMedium: GoogleFonts.outfit(fontSize: 24, color: onSurface),
+      bodySmall: GoogleFonts.outfit(fontSize: 24, color: onSurface),
+      titleLarge: GoogleFonts.outfit(
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+        color: onSurface,
+      ),
+      titleMedium: GoogleFonts.outfit(
+        fontSize: 32,
+        fontWeight: FontWeight.w600,
+        color: onSurface,
+      ),
+      labelLarge: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w600),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        minimumSize: const Size(0, 56),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusButton),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primary,
-            foregroundColor: AppColors.white,
-            elevation: 0,
-            minimumSize: const Size.fromHeight(64),
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(radiusButton),
-            ),
-            textStyle: GoogleFonts.outfit(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+        textStyle: GoogleFonts.outfit(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
         ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(64),
-            textStyle: const TextStyle(fontSize: 24),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(
-            minimumSize: const Size(64, 64),
-            textStyle: const TextStyle(fontSize: 24),
-          ),
-        ),
-      );
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 56),
+        textStyle: const TextStyle(fontSize: 24),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        minimumSize: const Size(64, 64),
+        textStyle: const TextStyle(fontSize: 24),
+      ),
+    ),
+  );
 }

@@ -15,6 +15,12 @@ import 'package:memora/features/care_circle/presentation/caregivers_screen.dart'
 import 'package:memora/features/reminders/presentation/reminders_screen.dart';
 import 'package:memora/features/dev_tools/presentation/dev_tools_screen.dart';
 import 'package:memora/features/onboarding/presentation/patient_onboarding_screen.dart';
+import 'package:memora/features/emergency_contacts/presentation/emergency_contacts_screen.dart';
+import 'package:memora/features/medicine/presentation/medicine_taken_confirmation_screen.dart';
+import 'package:memora/features/medicine/presentation/medicine_incoming_reminder_screen.dart';
+import 'package:memora/features/medicine/presentation/medicine_already_taken_screen.dart';
+import 'package:memora/features/reminders/data/reminder_providers.dart';
+import 'package:memora/features/reminders/presentation/patient_refills_screen.dart';
 import 'app_routes.dart';
 import 'route_guard.dart';
 
@@ -35,8 +41,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       final patientProfile = ref.read(patientProfileProvider);
       final redirect = routeRedirect(
         location: state.matchedLocation,
-        loading: auth.isLoading || (signedIn && profile.isLoading) ||
-          (role == 'patient' && patientProfile.isLoading),
+        loading:
+            auth.isLoading ||
+            (signedIn && profile.isLoading) ||
+            (role == 'patient' && patientProfile.isLoading),
         signedIn: signedIn,
         role: role,
         onboardingDone: profile.valueOrNull?.onboardingDone ?? false,
@@ -47,7 +55,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         return redirect;
       }
       // Pending caregivers must stay on their waiting home, even on deep links.
-      if (role == 'caregiver' && state.matchedLocation.startsWith('/caregiver/') &&
+      if (role == 'caregiver' &&
+          state.matchedLocation.startsWith('/caregiver/') &&
           state.matchedLocation != AppRoutes.caregiverHome) {
         final links = ref.read(caregiverLinksProvider).valueOrNull;
         if (links == null || !links.any((link) => link.isActive)) {
@@ -58,40 +67,114 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/session', builder: (_, __) => const _SessionScreen()),
-      GoRoute(path: AppRoutes.welcome, builder: (_, __) => const RoleSelectionScreen()),
+      GoRoute(
+        path: AppRoutes.welcome,
+        builder: (_, __) => const RoleSelectionScreen(),
+      ),
       GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
-      GoRoute(path: AppRoutes.register, builder: (_, state) {
-        final role = state.uri.queryParameters['role'];
-        if (role != 'patient' && role != 'caregiver') return const RoleSelectionScreen();
-        return RegisterScreen(role: role!);
-      }),
-      GoRoute(path: AppRoutes.forgotPassword, builder: (_, __) =>
-          const _FeatureShell(title: 'Forgot password', phase: 2)),
-      GoRoute(path: AppRoutes.linkPatient, builder: (_, __) => const LinkingScreen()),
-        GoRoute(path: AppRoutes.patientOnboarding,
-          builder: (_, __) => const PatientOnboardingScreen()),
-      GoRoute(path: AppRoutes.patientHome, builder: (_, __) => const PatientHomeScreen()),
-      GoRoute(path: AppRoutes.patientProfile, builder: (_, __) =>
-          const _FeatureShell(title: 'Profile', phase: 2)),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (_, state) {
+          final role = state.uri.queryParameters['role'];
+          if (role != 'patient' && role != 'caregiver') {
+            return const RoleSelectionScreen();
+          }
+          return RegisterScreen(role: role!);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        builder:
+            (_, __) => const _FeatureShell(title: 'Forgot password', phase: 2),
+      ),
+      GoRoute(
+        path: AppRoutes.linkPatient,
+        builder: (_, __) => const LinkingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientOnboarding,
+        builder: (_, __) => const PatientOnboardingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientHome,
+        builder: (_, __) => const PatientHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientMedicine,
+        builder: (_, __) => const _PatientMedicineDispatcher(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientMedicineConfirmed,
+        builder: (_, __) => const MedicineTakenConfirmationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientMedicineAlreadyTaken,
+        builder: (_, __) => const MedicineAlreadyTakenScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientContacts,
+        builder: (_, __) => const EmergencyContactsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientRefills,
+        builder: (_, __) => const PatientRefillsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.patientProfile,
+        builder: (_, __) => const _FeatureShell(title: 'Profile', phase: 2),
+      ),
       ShellRoute(
-        builder: (_, state, child) => _CaregiverShell(location: state.matchedLocation, child: child),
+        builder:
+            (_, state, child) =>
+                _CaregiverShell(location: state.matchedLocation, child: child),
         routes: [
-          GoRoute(path: AppRoutes.caregiverHome, builder: (_, __) => const CaregiverHomeScreen()),
-          GoRoute(path: AppRoutes.caregiverProfile, builder: (_, __) => const CaregiverProfileScreen()),
-          GoRoute(path: AppRoutes.caregiverReminders, builder: (_, __) => const _CaregiverReminders()),
-          GoRoute(path: AppRoutes.careCircle, builder: (_, __) => const CaregiversScreen()),
-          GoRoute(path: AppRoutes.caregiverSafeZone, builder: (_, __) =>
-              const _FeatureShell(title: 'Safe zone', phase: 3)),
+          GoRoute(
+            path: AppRoutes.caregiverHome,
+            builder: (_, __) => const CaregiverHomeScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.caregiverProfile,
+            builder: (_, __) => const CaregiverProfileScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.caregiverReminders,
+            builder: (_, __) => const _CaregiverReminders(),
+          ),
+          GoRoute(
+            path: AppRoutes.caregiverContacts,
+            builder: (_, __) => const EmergencyContactsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.careCircle,
+            builder: (_, __) => const CaregiversScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.caregiverSafeZone,
+            builder:
+                (_, __) => const _FeatureShell(title: 'Safe zone', phase: 3),
+          ),
         ],
       ),
-      GoRoute(path: AppRoutes.alertsList, builder: (_, __) =>
-          const _FeatureShell(title: 'Alerts', phase: 3)),
-      GoRoute(path: AppRoutes.devTools, builder: (_, __) => const DevToolsScreen()),
+      GoRoute(
+        path: AppRoutes.alertsList,
+        builder: (_, __) => const _FeatureShell(title: 'Alerts', phase: 3),
+      ),
+      GoRoute(
+        path: AppRoutes.devTools,
+        builder: (_, __) => const DevToolsScreen(),
+      ),
     ],
-    errorBuilder: (context, _) => Scaffold(body: EmptyState(
-      icon: Icons.search_rounded, title: 'This page is not available',
-      action: AppButton(label: 'Go home', onPressed: () => context.go(AppRoutes.welcome)),
-    )),
+    errorBuilder:
+        (context, _) => Scaffold(
+          body: EmptyState(
+            icon: Icons.search_rounded,
+            title: 'This page is not available',
+            action: AppButton(
+              label: 'Go home',
+              onPressed: () => context.go(AppRoutes.welcome),
+            ),
+          ),
+        ),
   );
   ref.onDispose(router.dispose);
   ref.onDispose(refresh.dispose);
@@ -114,21 +197,29 @@ class _SessionScreen extends ConsumerWidget {
     if (auth.isLoading || user.isLoading) {
       return const Scaffold(body: LoadingView(message: 'Opening Memora…'));
     }
-    return Scaffold(body: EmptyState(
-      icon: Icons.person_outline_rounded,
-      title: 'We could not open your profile',
-      subtitle: 'Check your connection and try again.',
-      action: Column(mainAxisSize: MainAxisSize.min, children: [
-        AppButton(label: 'Try again', onPressed: () => ref.invalidate(currentUserProvider)),
-        TextButton(
-          onPressed: () async {
-            await ref.read(authServiceProvider).logout();
-            if (context.mounted) context.go(AppRoutes.login);
-          },
-          child: const Text('Log out'),
+    return Scaffold(
+      body: EmptyState(
+        icon: Icons.person_outline_rounded,
+        title: 'We could not open your profile',
+        subtitle: 'Check your connection and try again.',
+        action: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppButton(
+              label: 'Try again',
+              onPressed: () => ref.invalidate(currentUserProvider),
+            ),
+            TextButton(
+              onPressed: () async {
+                await ref.read(authServiceProvider).logout();
+                if (context.mounted) context.go(AppRoutes.login);
+              },
+              child: const Text('Log out'),
+            ),
+          ],
         ),
-      ]),
-    ));
+      ),
+    );
   }
 }
 
@@ -139,16 +230,28 @@ class _CaregiverReminders extends ConsumerWidget {
     final links = ref.watch(caregiverLinksProvider);
     return links.when(
       loading: () => const Scaffold(body: LoadingView()),
-      error: (_, __) => Scaffold(body: ErrorView(message: 'We could not load your care circle.',
-        onRetry: () => ref.invalidate(caregiverLinksProvider))),
+      error:
+          (_, __) => Scaffold(
+            body: ErrorView(
+              message: 'We could not load your care circle.',
+              onRetry: () => ref.invalidate(caregiverLinksProvider),
+            ),
+          ),
       data: (items) {
         final active = items.where((link) => link.isActive);
         if (active.isEmpty) {
-          return const Scaffold(body: EmptyState(
-            icon: Icons.people_outline, title: 'Connect to a patient first'));
+          return const Scaffold(
+            body: EmptyState(
+              icon: Icons.people_outline,
+              title: 'Connect to a patient first',
+            ),
+          );
         }
         final link = active.first;
-        return RemindersScreen(patientId: link.patientId, isPrimary: link.isPrimary);
+        return RemindersScreen(
+          patientId: link.patientId,
+          isPrimary: link.isPrimary,
+        );
       },
     );
   }
@@ -158,23 +261,50 @@ class _CaregiverShell extends ConsumerWidget {
   final String location;
   final Widget child;
   const _CaregiverShell({required this.location, required this.child});
-  static const paths = [AppRoutes.caregiverHome, AppRoutes.caregiverReminders,
-    AppRoutes.caregiverSafeZone, AppRoutes.careCircle];
+  static const paths = [
+    AppRoutes.caregiverHome,
+    AppRoutes.caregiverReminders,
+    AppRoutes.caregiverContacts,
+    AppRoutes.caregiverSafeZone,
+    AppRoutes.careCircle,
+  ];
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final active = ref.watch(caregiverLinksProvider).valueOrNull?.any((l) => l.isActive) ?? false;
+    final active =
+        ref.watch(caregiverLinksProvider).valueOrNull?.any((l) => l.isActive) ??
+        false;
     return Scaffold(
       body: child,
-      bottomNavigationBar: active ? NavigationBar(
-        selectedIndex: paths.contains(location) ? paths.indexOf(location) : 0,
-        onDestinationSelected: (index) => context.go(paths[index]),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.alarm_rounded), label: 'Reminders'),
-          NavigationDestination(icon: Icon(Icons.location_on_rounded), label: 'Safe zone'),
-          NavigationDestination(icon: Icon(Icons.people_rounded), label: 'Care circle'),
-        ],
-      ) : null,
+      bottomNavigationBar:
+          active
+              ? NavigationBar(
+                selectedIndex:
+                    paths.contains(location) ? paths.indexOf(location) : 0,
+                onDestinationSelected: (index) => context.go(paths[index]),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_rounded),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.alarm_rounded),
+                    label: 'Reminders',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.contact_phone_rounded),
+                    label: 'Contacts',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.location_on_rounded),
+                    label: 'Safe zone',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.people_rounded),
+                    label: 'Care circle',
+                  ),
+                ],
+              )
+              : null,
     );
   }
 }
@@ -186,7 +316,30 @@ class _FeatureShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(title)),
-    body: EmptyState(icon: Icons.construction_rounded, title: '$title is being prepared',
-      subtitle: 'Available in a later test build.'),
+    body: EmptyState(
+      icon: Icons.construction_rounded,
+      title: '$title is being prepared',
+      subtitle: 'Available in a later test build.',
+    ),
   );
 }
+
+class _PatientMedicineDispatcher extends ConsumerWidget {
+  const _PatientMedicineDispatcher();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    final patientId = user?.patientId ?? '';
+    final actionableAsync = ref.watch(actionableOccurrencesProvider(patientId));
+    final hasActionable = (actionableAsync.valueOrNull ?? []).isNotEmpty;
+
+    if (hasActionable) {
+      final occ = actionableAsync.valueOrNull?.firstOrNull;
+      return MedicineIncomingReminderScreen(occurrence: occ);
+    } else {
+      return const MedicineAlreadyTakenScreen();
+    }
+  }
+}
+

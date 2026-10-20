@@ -1,12 +1,12 @@
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:memora/data/models/user_model.dart';
 import 'package:memora/data/repositories/user_repository.dart';
 import 'package:memora/data/repositories/link_repository.dart';
 import 'package:memora/core/constants/app_constants.dart';
 import 'package:memora/core/errors/app_error_handler.dart';
+import 'package:memora/data/services/notification_service.dart';
 
 /// High-level authentication and linking operations.
 class AuthService {
@@ -72,9 +72,11 @@ class AuthService {
         final registeredUser = await _userRepo.createPatientRegistration(
           user: user,
         );
+        _storeFcmToken(registeredUser.uid);
         return registeredUser;
       } else {
         await _userRepo.createCaregiverRegistration(user);
+        _storeFcmToken(user.uid);
       }
       return user;
     } on FirebaseException catch (error) {
@@ -114,8 +116,8 @@ class AuthService {
   /// Registers FCM token for this device with arrayUnion (called on login/refresh).
   void _storeFcmToken(String? uid) {
     if (uid == null) return;
-    FirebaseMessaging.instance.getToken().then((token) {
-      if (token != null) updateFcmToken(uid, token);
+    NotificationService().getFcmToken().then((token) {
+      if (token != null && token.isNotEmpty) updateFcmToken(uid, token);
     }).catchError((e) {
       debugPrint('[AuthService] FCM token store failed: $e');
     });
@@ -127,8 +129,10 @@ class AuthService {
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
       try {
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) await _userRepo.removeFcmToken(uid, token);
+        final token = await NotificationService().getFcmToken();
+        if (token != null && token.isNotEmpty) {
+          await _userRepo.removeFcmToken(uid, token);
+        }
       } catch (e) {
         debugPrint('[AuthService] FCM token removal on logout failed: $e');
       }

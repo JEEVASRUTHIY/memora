@@ -18,7 +18,12 @@ class AppRoutes {
 
   // Patient shell
   static const String patientHome    = '/patient/home';
+  static const String patientMedicine = '/patient/medicine';
+  static const String patientMedicineConfirmed = '/patient/medicine/confirmed';
+  static const String patientMedicineAlreadyTaken = '/patient/medicine/already-taken';
   static const String patientReminders = '/patient/reminders';
+  static const String patientRefills   = '/patient/refills';
+  static const String patientContacts = '/patient/contacts';
   static const String patientProfile = '/patient/profile';
   static const String safeZoneWarning = '/patient/safe-zone-warning';
 
@@ -26,6 +31,7 @@ class AppRoutes {
   static const String caregiverHome    = '/caregiver/home';
   static const String caregiverProfile  = '/caregiver/profile';
   static const String caregiverReminders = '/caregiver/reminders';
+  static const String caregiverContacts  = '/caregiver/contacts';
   static const String caregiverSafeZone  = '/caregiver/safe-zone';
   static const String careCircle         = '/caregiver/care-circle';
   static const String alertsList         = '/caregiver/alerts';

@@ -10,21 +10,34 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
     function patientSelf(patientId) {
-      return authed() &&
-        user(request.auth.uid).role == 'patient' &&
-        user(request.auth.uid).patientId == patientId;
+      return authed() && (
+        request.auth.uid == patientId ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         user(request.auth.uid).role == 'patient' &&
+         ('patientId' in user(request.auth.uid)) &&
+         user(request.auth.uid).patientId == patientId) ||
+        (exists(/databases/$(database)/documents/patients/$(patientId)) &&
+         get(/databases/$(database)/documents/patients/$(patientId)).data.ownerUid == request.auth.uid)
+      );
     }
     function activeLink(patientId) {
-      return authed() &&
-        exists(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)) &&
-        get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.status == 'active';
+      return authed() && (
+        (exists(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)) &&
+         get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.status == 'active') ||
+        (exists(/databases/$(database)/documents/caregiverLinks/$(request.auth.uid)/patients/$(patientId)) &&
+         get(/databases/$(database)/documents/caregiverLinks/$(request.auth.uid)/patients/$(patientId)).data.status == 'active')
+      );
     }
     function linked(patientId) {
       return patientSelf(patientId) || activeLink(patientId);
     }
     function primaryCaregiver(patientId) {
-      return activeLink(patientId) &&
-        get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.role == 'primary';
+      return activeLink(patientId) && (
+        (exists(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)) &&
+         get(/databases/$(database)/documents/links/$(patientId + '_' + request.auth.uid)).data.role == 'primary') ||
+        (exists(/databases/$(database)/documents/caregiverLinks/$(request.auth.uid)/patients/$(patientId)) &&
+         get(/databases/$(database)/documents/caregiverLinks/$(request.auth.uid)/patients/$(patientId)).data.role == 'primary')
+      );
     }
 
     match /users/{uid} {
@@ -150,6 +163,14 @@ service cloud.firestore {
     match /patients/{patientId}/weeks/{weekId} {
       allow read: if linked(patientId);
       allow write: if false;
+    }
+
+    match /patients/{patientId}/contacts/{contactId} {
+      allow read, create, update, delete: if linked(patientId) || caregiver();
+    }
+
+    match /patients/{patientId}/refills/{refillId} {
+      allow read, create, update, delete: if linked(patientId) || caregiver();
     }
 
     match /{document=**} {

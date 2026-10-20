@@ -8,6 +8,7 @@ import 'package:memora/core/theme/app_colors.dart';
 import 'package:memora/core/constants/app_constants.dart';
 import 'package:memora/data/models/link_model.dart';
 import 'package:memora/features/auth/data/auth_providers.dart';
+import 'package:memora/data/services/notification_service.dart';
 
 /// Home screen for caregivers.
 /// - Primary caregiver: full dashboard access + Caregivers management button.
@@ -22,28 +23,37 @@ class CaregiverHomeScreen extends ConsumerWidget {
     final linksAsync = ref.watch(caregiverLinksProvider);
 
     return userAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(
-        body: Center(child: Text('Error: $e')),
-      ),
+      loading:
+          () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (user) {
         if (user == null) {
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          NotificationService().requestPermissionsOnce();
+        });
 
         // Determine this caregiver's link status
         return linksAsync.when(
-          loading: () => const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          ),
+          loading:
+              () => const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              ),
           error: (_, __) => _buildDashboard(context, ref, user.name, null, 0),
           data: (links) {
-            final visibleLinks = links.where((link) =>
-                link.status == AppConstants.linkStatusActive ||
-                link.status == AppConstants.linkStatusPending).toList();
+            final visibleLinks =
+                links
+                    .where(
+                      (link) =>
+                          link.status == AppConstants.linkStatusActive ||
+                          link.status == AppConstants.linkStatusPending,
+                    )
+                    .toList();
             if (visibleLinks.isEmpty) {
               // No link yet → show link-patient prompt
               return _buildNoLinkScreen(context, ref, user.name);
@@ -56,25 +66,35 @@ class CaregiverHomeScreen extends ConsumerWidget {
             );
 
             // Count pending secondaries for badge (primary only)
-            final pendingCount = myLink.isPrimary
-                ? links
-                    .where((l) =>
-                        l.role == AppConstants.linkRoleSecondary &&
-                        l.status == AppConstants.linkStatusPending)
-                    .length
-                : 0;
+            final pendingCount =
+                myLink.isPrimary
+                    ? links
+                        .where(
+                          (l) =>
+                              l.role == AppConstants.linkRoleSecondary &&
+                              l.status == AppConstants.linkStatusPending,
+                        )
+                        .length
+                    : 0;
+
+            if (myLink.status == AppConstants.linkStatusPending) {
+              return _buildWaitingScreen(context, ref, user.name);
+            }
 
             return _buildDashboard(
-                  context, ref, user.name, myLink, pendingCount,
-                  isPending: myLink.status == AppConstants.linkStatusPending);
+              context,
+              ref,
+              user.name,
+              myLink,
+              pendingCount,
+            );
           },
         );
       },
     );
   }
 
-  Widget _buildNoLinkScreen(
-      BuildContext context, WidgetRef ref, String name) {
+  Widget _buildNoLinkScreen(BuildContext context, WidgetRef ref, String name) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
@@ -102,16 +122,19 @@ class CaregiverHomeScreen extends ConsumerWidget {
                           Text(
                             'Caregiver Account',
                             style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                color: AppTheme.textSecondary),
+                              fontSize: 14,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
                       onPressed: () => _logout(context, ref),
-                      icon: const Icon(Icons.logout_rounded,
-                          color: AppTheme.textSecondary),
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -127,8 +150,7 @@ class CaregiverHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildWaitingScreen(
-      BuildContext context, WidgetRef ref, String name) {
+  Widget _buildWaitingScreen(BuildContext context, WidgetRef ref, String name) {
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.bgGradient),
@@ -145,8 +167,11 @@ class CaregiverHomeScreen extends ConsumerWidget {
                       color: AppColors.warning.withOpacity(0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.hourglass_top_rounded,
-                        color: AppColors.warning, size: 56),
+                    child: const Icon(
+                      Icons.hourglass_top_rounded,
+                      color: AppColors.warning,
+                      size: 56,
+                    ),
                   ),
                   const SizedBox(height: 28),
                   Text(
@@ -162,21 +187,28 @@ class CaregiverHomeScreen extends ConsumerWidget {
                     'Your request to be a secondary caregiver is pending. The primary caregiver will need to approve you before you can access the patient\'s information.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.outfit(
-                        fontSize: 15, color: AppTheme.textSecondary),
+                      fontSize: 15,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                   const SizedBox(height: 40),
                   OutlinedButton.icon(
                     onPressed: () => _logout(context, ref),
-                    icon: const Icon(Icons.logout_rounded,
-                        color: AppTheme.textSecondary),
-                    label: Text('Logout',
-                        style: GoogleFonts.outfit(
-                            color: AppTheme.textSecondary)),
+                    icon: const Icon(
+                      Icons.logout_rounded,
+                      color: AppTheme.textSecondary,
+                    ),
+                    label: Text(
+                      'Logout',
+                      style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
-                          color: AppTheme.textSecondary.withOpacity(0.3)),
+                        color: AppTheme.textSecondary.withOpacity(0.3),
+                      ),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ],
@@ -188,8 +220,14 @@ class CaregiverHomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDashboard(BuildContext context, WidgetRef ref, String name,
-      LinkModel? myLink, int pendingCount, {bool isPending = false}) {
+  Widget _buildDashboard(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+    LinkModel? myLink,
+    int pendingCount, {
+    bool isPending = false,
+  }) {
     final isPrimary = myLink?.isPrimary ?? false;
     final patientId = myLink?.patientId ?? '';
     return Scaffold(
@@ -221,10 +259,12 @@ class CaregiverHomeScreen extends ConsumerWidget {
                                 ? 'Primary Caregiver'
                                 : 'Secondary Caregiver',
                             style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                color: isPrimary
-                                    ? AppTheme.primary
-                                    : AppTheme.textSecondary),
+                              fontSize: 14,
+                              color:
+                                  isPrimary
+                                      ? AppTheme.primary
+                                      : AppTheme.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -236,7 +276,9 @@ class CaregiverHomeScreen extends ConsumerWidget {
                         radius: 20,
                         backgroundColor: AppColors.primaryContainer,
                         child: Text(
-                          name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase(),
+                          name.trim().isEmpty
+                              ? '?'
+                              : name.trim()[0].toUpperCase(),
                           style: GoogleFonts.outfit(
                             color: AppTheme.primary,
                             fontWeight: FontWeight.bold,
@@ -252,8 +294,10 @@ class CaregiverHomeScreen extends ConsumerWidget {
                       ),
                     IconButton(
                       onPressed: () => _logout(context, ref),
-                      icon: const Icon(Icons.logout_rounded,
-                          color: AppTheme.textSecondary),
+                      icon: const Icon(
+                        Icons.logout_rounded,
+                        color: AppTheme.textSecondary,
+                      ),
                       tooltip: 'Logout',
                     ),
                   ],
@@ -268,12 +312,14 @@ class CaregiverHomeScreen extends ConsumerWidget {
                   icon: Icons.alarm_rounded,
                   iconColor: AppTheme.primary,
                   title: 'Reminders',
-                  subtitle: isPrimary
-                      ? 'Create and manage patient reminders'
-                      : 'View patient reminders',
-                  onTap: patientId.isNotEmpty
-                      ? () => context.push(AppRoutes.caregiverReminders)
-                      : null,
+                  subtitle:
+                      isPrimary
+                          ? 'Create and manage patient reminders'
+                          : 'View patient reminders',
+                  onTap:
+                      patientId.isNotEmpty
+                          ? () => context.push(AppRoutes.caregiverReminders)
+                          : null,
                 ),
               ],
             ),
@@ -296,7 +342,9 @@ class CaregiverHomeScreen extends ConsumerWidget {
           Icon(Icons.hourglass_top_rounded, color: AppColors.warning),
           SizedBox(width: 10),
           Expanded(
-            child: Text('Waiting for the patient\'s primary caregiver to approve your link.'),
+            child: Text(
+              'Waiting for the patient\'s primary caregiver to approve your link.',
+            ),
           ),
         ],
       ),
@@ -306,25 +354,34 @@ class CaregiverHomeScreen extends ConsumerWidget {
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        title: Text('Logout',
-            style: GoogleFonts.outfit(color: AppTheme.textPrimary)),
-        content: Text('Are you sure you want to logout?',
-            style: GoogleFonts.outfit(color: AppTheme.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('Cancel',
-                style: GoogleFonts.outfit(color: AppTheme.textSecondary)),
+      builder:
+          (dialogContext) => AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: Text(
+              'Logout',
+              style: GoogleFonts.outfit(color: AppTheme.textPrimary),
+            ),
+            content: Text(
+              'Are you sure you want to logout?',
+              style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(
+                  'Logout',
+                  style: GoogleFonts.outfit(color: AppTheme.error),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text('Logout',
-                style: GoogleFonts.outfit(color: AppTheme.error)),
-          ),
-        ],
-      ),
     );
     if (confirm == true) {
       await ref.read(authNotifierProvider.notifier).logout();
@@ -336,8 +393,10 @@ class _CaregiversBadgeButton extends StatelessWidget {
   final int pendingCount;
   final VoidCallback onTap;
 
-  const _CaregiversBadgeButton(
-      {required this.pendingCount, required this.onTap});
+  const _CaregiversBadgeButton({
+    required this.pendingCount,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -363,9 +422,10 @@ class _CaregiversBadgeButton extends StatelessWidget {
               child: Text(
                 '$pendingCount',
                 style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold),
+                  color: AppColors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -408,8 +468,11 @@ class _LinkPatientCard extends StatelessWidget {
                 color: AppColors.white.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.person_add_rounded,
-                  color: AppColors.white, size: 28),
+              child: const Icon(
+                Icons.person_add_rounded,
+                color: AppColors.white,
+                size: 28,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -427,13 +490,18 @@ class _LinkPatientCard extends StatelessWidget {
                   Text(
                     'Enter your patient\'s ID to connect',
                     style: GoogleFonts.outfit(
-                        fontSize: 14, color: AppColors.white70),
+                      fontSize: 14,
+                      color: AppColors.white70,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded,
-                color: AppColors.white70, size: 20),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppColors.white70,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -465,8 +533,7 @@ class _DashboardCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppTheme.surface.withOpacity(0.55),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: iconColor.withOpacity(0.25), width: 1.5),
+          border: Border.all(color: iconColor.withOpacity(0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
               color: iconColor.withOpacity(0.06),
@@ -491,19 +558,28 @@ class _DashboardCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: GoogleFonts.outfit(
-                          color: AppTheme.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600)),
-                  Text(subtitle,
-                      style: GoogleFonts.outfit(
-                          color: AppTheme.textSecondary, fontSize: 12)),
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.outfit(
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppTheme.textSecondary),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppTheme.textSecondary,
+            ),
           ],
         ),
       ),
